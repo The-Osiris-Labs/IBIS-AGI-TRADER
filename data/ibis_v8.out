@@ -1,0 +1,1496 @@
+nohup: ignoring input
+Loaded env from: /root/projects/Dont enter unless solicited/AGI Trader/ibis/keys.env
+2026-02-08 00:44:45,142 [INFO] 🦅 STARTING IBIS v8: SWING STRATEGY | DB STATE | CROSS-EXCHANGE
+2026-02-08 00:44:45,145 [INFO] 🦅 IBIS v8 ENGINE INITIALIZING...
+2026-02-08 00:44:48,381 [INFO] ✅ KuCoin Connection Verified
+✅ Cross-exchange monitor initialized (Binance)
+2026-02-08 00:44:48,393 [INFO] ✅ Cross-Exchange Monitor Active
+2026-02-08 00:44:48,394 [INFO]    🔄 Syncing State (Fetching Balances)...
+2026-02-08 00:44:48,964 [INFO]    🔄 Analyzing 12 non-zero balances...
+2026-02-08 00:44:48,968 [INFO] ✅ State Synchronized with Database
+2026-02-08 00:44:48,969 [INFO] 🦅 IBIS v8 ENGINE STARTED
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"269ec050bbb5f35791952111811d5338"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 00:45:54,123 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 00:46:04,845 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"33594e42262cdc64ccc084187274454f"
+}
+2026-02-08 00:46:15,069 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"dda3cd22d80fb347b850f85290264959"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"ed752003ff480c7be6023b4eddd20058"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"8b32d26a5a5e3c1ecfdc903683fda42f"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"3521860039b2a308d582000f7e62cb59"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 00:48:47,366 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 00:48:47,872 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"eb8fdc040e1d3d5fc5f6ef73b68c0f66"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"52f38b754b4fae0a076061730c828d27"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"905810614ea3ea1f6352e1743194ad09"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"c2265b7ae41f4161e8c7256e7396ab41"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"acc0e55a63f1c94b5a47d443c08e3769"
+}
+2026-02-08 00:51:04,075 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 00:51:19,010 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 00:51:19,518 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"d4468b320d7c480b3624d605b734451b"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"5c5b5030fba0c441d00c1e2b28e17711"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e6701039674e734e678ddb5a28577317"
+}
+2026-02-08 00:53:34,234 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 00:53:52,654 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 00:53:53,161 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"bd06f250c0bf3c14807cd75d18335218"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e2c48e7950a4560080a12d1db2b6d47a"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 00:56:07,608 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 00:56:12,152 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 00:56:29,693 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 00:56:30,198 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e3aaa814a2684d2ca66e9035264b1277"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e13b406205a98739c42108416035ed7b"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 00:58:44,847 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 00:58:49,429 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"d48e4938fcf4520ed1daab203d3cf734"
+}
+2026-02-08 00:59:02,264 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 00:59:02,769 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"88fc805d9924bc5b1a0d0f542421f624"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"bda7871235b5627b1614205cf9c7fe03"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e1f19c2883e91a732543b4329286cb76"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"65284445ebaf8459107a1331ec5b7b2a"
+}
+2026-02-08 01:01:28,326 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:01:38,959 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:01:47,863 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"18ac5429e519d270fad7c450e8a0304c"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"9177c038a45c785a7895d303434d037f"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"447c0e5380e07f3440674b3e594f3f55"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"54b94066f3cec937e708d625f3392705"
+}
+2026-02-08 01:04:05,839 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:04:16,473 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 01:04:19,423 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e911713cbc198b20220ded08d90e097b"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"2f06c83d1038ff13e0f4a02f32bc8f53"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"2d347a6f4558f51e597c9642c7ec5103"
+}
+2026-02-08 01:06:37,603 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:06:45,377 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"de9b6d04b6e635242daba37b5937c412"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"10370539f4b21f61910f472059bb7514"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"13d0ee7bc5e6924bfda4d9661597884e"
+}
+Timeout on attempt 1, retrying in 1.0s...
+2026-02-08 01:09:09,347 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 01:09:11,278 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"ea348d0926117f472b42aa35abbed321"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"5ca08033b7db501cce74d2514a99a07b"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:11:28,494 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:11:36,117 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"d09d851c82afa96406d68139cf9c1a0a"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"561d8d14295aab417a55f07824d1d26e"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:14:00,134 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 01:14:01,871 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"55128c41423a161bc0ffd45bfbed1176"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"70cdb06a319c29570242e117028f2818"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:16:28,064 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"4586d33ac2ceae11b8473079ecead502"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"aeafd7117fc4265c9fbdae4512078d3c"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"865113650cd224752e249c6348e73065"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:18:47,250 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:18:55,141 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"c7b1137774e4f03e9d5f235984b1c211"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"9eb087349d51ed4735cd2c195d262b50"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:21:18,410 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 01:21:22,947 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 01:21:23,452 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"9f6dfd79bd96741d4ab01316715c9d69"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"4aee592cec4b9e3166aaf00d8a55bb4b"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:23:47,902 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 01:23:48,410 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"27ccee67c67ac461bc78fb178b85cc5f"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"cc3a8f376f406103377bf2304fa57502"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"4ea9371d7190e529b9af0c2675b3d76b"
+}
+Timeout on attempt 1, retrying in 1.0s...
+2026-02-08 01:26:41,570 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 01:26:42,085 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"d2faa303503cfd2ae03f337d39a41d57"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e2f00f407888f6636c059325424e7b19"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"8b359a0711eed80eb06d857dad3c1f61"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"d612702129b2d765f5e966423a0a8a45"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:29:42,896 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($9.84)
+2026-02-08 01:29:43,404 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e14125290319af6e8802286905c18e38"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"18e96400a51a347d67a1057f3b8a3e0b"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"4fbd0a7537c7b8284bb06c41a4dc8c2f"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:32:05,548 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 01:32:06,057 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"f63a7d1782aee574d297ce643f24d428"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"2b69257faed92b629b83836d85325233"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"a6004e0b1a7b8c199e1aee2597777b72"
+}
+2026-02-08 01:35:52,395 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 01:35:52,901 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"b1a650063bfa767f9a0c8e2c00401f2f"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"9ca84401d25b1228018c19067c1f8a74"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"bf437f1f6697e85d62e1ba487a50df71"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:38:23,234 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"098a754a656c261ec64d3d00f03b8079"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"3f3e7e75e56eb35bf371cd70a9eb847e"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"3c14de7d8ca6a30874dccb0f00057854"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"88487a176966aa5836c863694a74730a"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:40:54,038 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 01:40:54,549 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"7ae6436f4275be323d84c45f13857654"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"f5c0fe2d2d0578142f2fa51be5417e63"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:43:19,564 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 01:43:20,075 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"105e3c32dad5ad1ef0fc00578de2f62e"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"aba084406604765bf650cd22421aff6b"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"c64e230aeeb70b4832022d0fb9859f1d"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"35a89e6a3904b14dd967e830fd95c276"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:45:32,325 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e851423d1963f1065274217232110e48"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"ef60b0770bf69b3c6a9faa6562a90160"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"edd5691094118378f1b9f0666adc2563"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"ce7a835ea21b4135b9bb630d2763f767"
+}
+2026-02-08 01:47:57,379 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:48:05,375 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"21634a7d98e4491665bea163df204f21"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"98f7247c328fb573b82d3e123753046c"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"01b36d38a97313303483ed71b599c12a"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"7682c156cbdaba17ba61c14711070029"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:50:35,153 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 01:50:36,825 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"34b97350a8004930a5f1ab0845c2ee09"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"249a016d35c24c3e89b96d63a9e6a54f"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:53:01,055 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"8a63bf58fcd79f000c57d0749130a109"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"6528ce65f3aaf343a3a2736afb00112c"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"83e94c3749321766a46cea46a338262a"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:55:28,508 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:55:36,109 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"b685ce3c3a67fc1b7af0ac3e8899ef01"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"26278b635a05ea1435ac8a337aefab27"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"77790d06705aeb69cadf271d43a9d027"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"d8cc654195908e4e6246c4526fb20078"
+}
+2026-02-08 01:57:37,411 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 01:57:55,384 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 01:58:03,229 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"b1bfa65dd7873a63cc95242471ec645d"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"1bf6086155738e4a08dc260ea401ba73"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"99e342560e2e7421b42fd07020d4107c"
+}
+2026-02-08 02:00:50,463 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:01:08,664 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:01:19,427 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:01:19,932 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"a074ad0e5757283279592e5c24928420"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"1a8a9f33dedbf757feb0ac21879b8129"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"114577342f9c7d29427d93181ab85001"
+}
+2026-02-08 02:03:54,895 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:04:01,065 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:04:03,035 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Timeout on attempt 1, retrying in 1.0s...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"2fc88802e9622a7e1a1f2179943f0c51"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"aadfa213b0a84b7772fe41480f301f09"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:06:44,258 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:06:53,189 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"4e2c6104f5be0725e39a5c126f518811"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"a46dbf7bce6a750481bc0b051b2ebd51"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"2b09fc5e92ec8e54d6c7fa4dd9e1a650"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:09:12,559 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:09:25,564 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"96cbc82326fec67a59392e4c144d9e2b"
+}
+Timeout on attempt 1, retrying in 1.0s...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"55653a6f51b0e32aeb203b112235fb14"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"0d09da5b9b4fbf22f5fb4c4ff4e50329"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"6d454e24213c7f4103a8986755709f7b"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:11:48,334 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:12:03,523 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"4e329e2b82491b3cef4d8b1cd1bf783d"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"117bd62c9b74e710ffbe115cf68e275c"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"c3f4e37c93ea665634a71a697973f34e"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:14:23,029 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:14:37,876 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"00fe13792cf3ce36f4e5860d8dd8f67c"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"a381a37ec3f4b91524988174d1862f12"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"d46eb063ec64e61120e840709cf5867a"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:16:50,662 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:16:56,858 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:16:57,365 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"2f10000a21f4f316cb605e4f30db084e"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"8c082a5ee9208126ec32005d65e8455c"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"10444268295aef1965c2640da1e8290a"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"5777dd1bfafaff3f2166b560c0d6b224"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:19:22,623 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:19:34,672 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:19:35,180 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"bc0f5462b672827135b34855ba21a618"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"461e7042f1c3af1e72f1d12b7e757048"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"111f4238d1fd0144b14dff46f1cbce51"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:21:49,968 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:21:50,478 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"300546354172d90829d23d10359e1169"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"64332807766e4c766a792d197bda577a"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"0d5c4c203df9d60e3bbc5e584e371e1a"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:23:56,252 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:24:14,153 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:24:14,667 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+2026-02-08 02:25:15,198 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -2.67%
+2026-02-08 02:25:15,486 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"f69f15187880de66d75d332124281b03"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"2bdf3929c9645b76baf83a404b18a10f"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:26:28,428 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:26:34,344 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:26:34,852 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+2026-02-08 02:27:35,380 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -2.78%
+2026-02-08 02:27:35,636 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"2f56b96c66e5f672a3a245588c62fe78"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"d3e5085762d4b0644ee4103e57f7706f"
+}
+2026-02-08 02:28:49,419 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:28:57,390 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:28:57,906 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+2026-02-08 02:29:58,404 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -2.87%
+2026-02-08 02:29:58,692 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"27a59c2c6d32da1046899b6c300d0e4a"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"93033a6246f4f122d119bf1133ea816b"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"ddf93e49ce5f765902d8d6759602511c"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"96d6503a0da8e471b49c612b695d6832"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:31:23,182 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:31:41,133 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:31:41,638 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+2026-02-08 02:32:42,128 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.14%
+2026-02-08 02:32:42,401 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"ad32674abbc29604caedee115f5a1c54"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"209d3d34a681fe3b889ee019bffe7c57"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e3bdd21bbc3dec0317acc436cb041609"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:33:58,958 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:34:04,932 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:34:05,439 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+2026-02-08 02:35:05,955 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.19%
+2026-02-08 02:35:06,753 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"9430b41a27b7b55c0ae61c1fd47d5d51"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e7768527ffccef5531078562a78e631c"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:36:26,717 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:36:44,642 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:36:45,148 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+2026-02-08 02:37:45,638 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.36%
+2026-02-08 02:37:45,913 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"af27ea5d39058f1c0be8496772228623"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"11d8ed67825035353ecbfd21d1668153"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:39:03,394 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:39:09,535 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:39:10,044 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+2026-02-08 02:40:10,556 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.03%
+2026-02-08 02:40:10,850 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"b1cc495286ed9410bed7bd0b9fe9d86e"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"3ed7aa7e64308c16f3ef983fab6cff00"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:41:25,252 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:41:43,231 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:41:43,743 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+2026-02-08 02:42:44,238 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -2.95%
+2026-02-08 02:42:44,510 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"b63b68125909f0528d33a32435aa5c68"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"8a8fc67732a8903a67c560232773e263"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e33f1e40c50e57583caf630a639d244a"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"46008477a2f82c6195d583564be0e220"
+}
+2026-02-08 02:44:06,740 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:44:20,635 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:44:21,145 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+2026-02-08 02:45:21,619 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.60%
+2026-02-08 02:45:21,886 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"572cd16e814d310e13d7643ba51fdb34"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"b5ba0b6e7840e9452629e60b71be9d1c"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"c5a87320cb887a5d22235076b52b732d"
+}
+2026-02-08 02:46:43,827 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:46:45,579 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+2026-02-08 02:47:46,286 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -4.11%
+2026-02-08 02:47:46,570 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"c7504d47effefc6ceb04701687917558"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"ac05fd2f514e0113ffd5cf418e0e8d06"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"81dc5c11d132d8465506df126525806f"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"66025a43b8c9f41a129e5759e75b4d37"
+}
+2026-02-08 02:48:54,742 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:49:09,593 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+2026-02-08 02:50:10,113 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.58%
+2026-02-08 02:50:10,384 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"24abc468ab00d71fd8f35615d654fb1e"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"96a8fa5fdb47c37da5586429954dd83d"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:51:27,399 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:51:35,034 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+2026-02-08 02:52:35,560 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.36%
+2026-02-08 02:52:35,833 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"86818b278af0ad24e9f7e6501810f94a"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"fff72e0712b41c1ffc4ac43ac7c4865f"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"30f29b0e04f79221f2a1946b325cb41d"
+}
+Timeout on attempt 1, retrying in 1.0s...
+2026-02-08 02:54:01,714 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+2026-02-08 02:55:02,230 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.51%
+2026-02-08 02:55:02,504 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"fdd256625d4cb0104deea80eb4a89243"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"a1a8f928ad11de02075df74e9e7b500b"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"626cdf69dc1bf2097bd9de1eb5e21624"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:56:36,935 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+2026-02-08 02:57:37,446 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.69%
+2026-02-08 02:57:37,746 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"0e4e702cc2a1a642cfe14a5a98249b35"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"6f05a476c57e825d133bbf347d531423"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"2cdf4b1a3c5e6026929627240a054b4b"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 02:58:53,465 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 02:58:55,155 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+2026-02-08 02:59:55,639 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.69%
+2026-02-08 02:59:55,929 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e75b4513d069142f2b33477432651328"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"fb07713d466d1d4cabc8fd5a7168be5b"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"b2cdc923ba86bd69dbf74f3fe74ae74b"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 03:01:28,554 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+2026-02-08 03:02:29,051 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.71%
+2026-02-08 03:02:29,349 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"4431e96a44d4ec134ca5391d57c9886a"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"bd51224e749e5b5bad1e001fb418ac54"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"36b7776c9b6d5d131965dd58aa26762a"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Timeout on attempt 1, retrying in 1.0s...
+2026-02-08 03:03:56,964 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 03:04:00,393 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+2026-02-08 03:05:00,890 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.39%
+2026-02-08 03:05:01,162 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"ad70960aa58bad4eb69e6a51941f5c50"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"86c2df2551227a6b6e96d40d4b062255"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"438f9969f9320a4a68dd2639e7816d65"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 03:06:21,854 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 03:06:24,725 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+2026-02-08 03:07:25,187 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.39%
+2026-02-08 03:07:25,446 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"58452c3681f4883b2740e67b68c70d25"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"e54ac3525c62b864488d340258567007"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"043f722cf616a7670fb5511d35b0660e"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 03:08:42,278 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+2026-02-08 03:08:45,165 [INFO] 💓 Heartbeat: 11 Positions | Thought: Scanning market......
+2026-02-08 03:09:45,675 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.47%
+2026-02-08 03:09:45,950 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"2909ce05f8afd47200d13b5ffcf3370e"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"a54ff31092066c2d63dcc00fdf3aa913"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"f72f754ca726e57b1a06fa749c7f685d"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"3960b03e21cffe11080f5d0e46d7f116"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 03:11:01,325 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 03:11:12,132 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+2026-02-08 03:12:12,638 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.48%
+2026-02-08 03:12:12,927 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"afed752d4fdb780d9c1a135e2f9c5b19"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"9a354071bf78d4398a3dca66b8fc810a"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"56e05743aa34233ba5ea842f0aa3630c"
+}
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"88fbed2fcf2cbe2ffb8fde34b534e31b"
+}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"73653a0b53c26e0019939b7e7d83053d"
+}
+2026-02-08 03:13:37,660 [WARNING] ⚠️ Signal ignored: Insufficient Capital ($0.57)
+CG Batch error: Request failed after 3 attempts: Rate limit exceeded - too many retries
+2026-02-08 03:13:45,277 [INFO] 💓 Heartbeat: 11 Positions | Thought: ➡️ Sideways consolidation | 🔄 Low trading volume |...
+2026-02-08 03:14:45,785 [INFO] 🛑 EXECUTING SALE: 2Z-USDT | Reason: STOP_LOSS | PnL: -3.69%
+2026-02-08 03:14:46,188 [ERROR] ❌ SELL FAILED 2Z-USDT: KuCoin API Error: {'msg': 'Order size increment invalid.', 'code': '400100'}
+Messari API error: Request failed after 3 attempts: Resource not found: {"error":"Not Found: The requested resource could not be found","data":null}
+Nansen API error: Request failed after 3 attempts: Resource not found: {
+  "message":"no Route matched with those values",
+  "request_id":"54bdf530b468fc30a8368449ba31692e"
+}
+2026-02-08 03:14:54,453 [INFO] 🛑 SHUTDOWN SIGNAL RECEIVED
+2026-02-08 03:14:54,454 [ERROR] ❌ CRITICAL MAIN ERROR: 'KuCoinClient' object has no attribute 'close_connection'
+Traceback (most recent call last):
+  File "/root/projects/Dont enter unless solicited/AGI Trader/main.py", line 44, in main
+    await engine.shutdown()
+  File "/root/projects/Dont enter unless solicited/AGI Trader/ibis/execution/engine.py", line 293, in shutdown
+AttributeError: 'KuCoinClient' object has no attribute 'close_connection'
+2026-02-08 03:14:54,677 [ERROR] Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x74552692f4a0>

@@ -1,0 +1,53 @@
+{
+  "comment": "IBIS Trading Configuration - Loaded dynamically, no hardcoded values in code",
+  "balance": null,
+  "symbols": [],
+  "position_pct": 0.25,
+  "stop_loss_pct": 0.025,
+  "take_profit_pct": 0.035,
+  "fee_pct": 0.001,
+  "analysis_interval_sec": 2,
+  "status_interval_sec": 30,
+  "price_check_interval_sec": 1,
+  "min_hold_time_sec": 60,
+  "max_loss_exit_pct": -8.0,
+  "timeout_hours": 2.0,
+  "_note": "balance=null means fetch from KuCoin API in LIVE mode",
+  "min_score": 70,
+  "risk_per_trade": 0.003,
+  "confidence_threshold": 55,
+  "market_primed_threshold": 0.2,
+  "aggressive_mode": {
+    "min_score": 75,
+    "target_profit": 0.025,
+    "stop_loss": 0.015,
+    "max_positions": 25,
+    "scan_interval": 8,
+    "volume_threshold": 750000
+  },
+  "enable_caution_mode": false,
+  "max_consecutive_losses": 5,
+  "drawdown_limit": 0.15,
+  "micro_hunter_mode": {
+    "min_score": 60,
+    "target_profit": 0.003,
+    "stop_loss": 0.002,
+    "max_positions": 30,
+    "scan_interval": 5,
+    "volume_threshold": 250000
+  },
+  "min_position_value": 0.1,
+  "hyper_mode": {
+    "min_score": 60,
+    "target_profit": 0.0015,
+    "stop_loss": 0.001,
+    "max_positions": 40,
+    "scan_interval": 1,
+    "volume_threshold": 100000
+  },
+  "enable_hyper_frequency": true,
+  "order_execution_timeout": 0.5,
+  "price_slippage_tolerance": 0.0005,
+  "max_concurrent_orders": 5,
+  "trade_retry_interval": 0.1
+}

@@ -1,0 +1,6 @@
+# IBIS AGI Trading Agent Requirements
+# This file is deprecated - use root requirements.txt instead
+# All dependencies are now specified in /root/projects/Dont enter unless solicited/AGI Trader/requirements.txt
+
+# For installation, use:
+# pip install -r requirements.txt

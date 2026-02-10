@@ -1,0 +1,81 @@
+# Dependencies
+venv/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+*.env
+keys.env
+
+# Logs
+*.log
+*.log.*
+
+# State and Memory (runtime data)
+data/ibis_true_state.json
+data/ibis_true_memory.json
+data/ibis_true.log*
+
+# Database (runtime)
+*.db
+*.sqlite
+ibis_unified.db
+
+# Cache and artifacts
+.cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary and backup files
+*.tmp
+*.temp
+*.old
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+
+# Archives (don't commit versioned releases)
+*.zip
+*.tar.gz
+*.tar.bz2
+
+# IDE specific files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.python-version
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+.AppleDouble
+.LSOverride
+._*
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments (venv handled separately)
+env/
+ENV/
+.venv

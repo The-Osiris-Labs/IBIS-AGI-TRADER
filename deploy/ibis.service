@@ -1,0 +1,25 @@
+[Unit]
+Description=IBIS True Autonomous Trading Agent
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/projects/Dont enter unless solicited/AGI Trader
+Environment=PATH=/root/projects/Dont enter unless solicited/AGI Trader/venv/bin:/usr/bin:/bin
+EnvironmentFile=/root/projects/Dont enter unless solicited/AGI Trader/ibis/keys.env
+ExecStart=/root/projects/Dont enter unless solicited/AGI Trader/venv/bin/python ibis_true_agent.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_service.log
+StandardError=append:/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_service.err
+
+# Hardening
+ProtectSystem=strict
+ReadWritePaths=/root/projects/Dont enter unless solicited/AGI Trader/data
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

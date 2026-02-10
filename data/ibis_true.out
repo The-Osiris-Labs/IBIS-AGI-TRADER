@@ -1,0 +1,10 @@
+nohup: ignoring input
+Loaded env from: /root/projects/Dont enter unless solicited/AGI Trader/ibis/keys.env
+Traceback (most recent call last):
+  File "/root/projects/Dont enter unless solicited/AGI Trader/ibis_true_agent.py", line 3243, in <module>
+    agent = IBISAutonomousAgent()
+            ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/projects/Dont enter unless solicited/AGI Trader/ibis_true_agent.py", line 69, in __init__
+    self.cross_exchange = CrossExchangeMonitor()
+                          ^^^^^^^^^^^^^^^^^^^^
+NameError: name 'CrossExchangeMonitor' is not defined

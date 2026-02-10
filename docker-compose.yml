@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  ibis:
+    build: .
+    container_name: ibis-trader
+    environment:
+      - PAPER_TRADING=${PAPER_TRADING:-false}
+      - DEBUG=${DEBUG:-false}
+      - VERBOSE=${VERBOSE:-false}
+    volumes:
+      - ./data:/app/data
+      - ./ibis/keys.env:/app/ibis/keys.env:ro
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - ibis-network
+
+networks:
+  ibis-network:
+    driver: bridge

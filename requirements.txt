@@ -1,0 +1,59 @@
+# AGI Trader - Unified Requirements
+# By TheOsirisLabs.com | Founder: Youssef SalahEldin
+# Comprehensive requirements for all AGI Trader versions
+
+# Core Framework
+textual>=7.5.0
+textual-plotext>=0.2.0
+
+# Terminal Formatting
+rich>=13.7.0
+colorama>=0.4.6
+
+# Async & Networking
+aiohttp>=3.9.0
+websockets>=12.0
+
+# Data Processing
+pandas>=2.2.0
+numpy>=1.26.0
+
+# Database
+SQLAlchemy>=2.0.0
+
+# Configuration
+python-dotenv>=1.0.0
+PyYAML>=6.0
+
+# Security & Cryptography
+cryptography>=41.0.0
+
+# Date & Time
+python-dateutil>=2.8.0
+pytz>=2023.3
+
+# HTTP & API
+requests>=2.31.0
+
+# Development & Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+
+# OPTIONAL - Enhanced Trading Capabilities (Install separately if needed)
+# ccxt>=4.0.0          # Unified exchange integration (100+ exchanges)
+# TA-Lib>=0.4.26       # Technical analysis library (200+ indicators)
+# vectorbt>=0.23.0     # Ultra-fast backtesting with Numba
+# ccxt-pandas>=0.1.0   # CCXT + Pandas integration
+# flask>=2.3.0         # Web dashboard
+# backtrader>=1.9.78   # Feature-rich backtesting
+# zipline>=2.2.0       # Algorithmic trading library
+
+# IBIS AGI Requirements (FREE MODELS)
+# All AI capabilities via kilo CLI - no additional pip packages needed
+# Models used (all free):
+# - minimax/minimax-m2.1:free (primary reasoning)
+# - google/gemini-2.0-flash-lite-001 (fast inference)
+# - arcee-ai/trinity-large-preview:free (high capacity)

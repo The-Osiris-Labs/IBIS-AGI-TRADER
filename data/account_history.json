@@ -1,0 +1,10 @@
+{
+  "starting_balance": 50.0,
+  "current_balance": 50.0,
+  "peak_balance": 50.0,
+  "trough_balance": 50.0,
+  "total_fees_paid": 0.0,
+  "total_trades": 0,
+  "winning_trades": 0,
+  "losing_trades": 0
+}
