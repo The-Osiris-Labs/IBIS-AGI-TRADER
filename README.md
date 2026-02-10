@@ -23,6 +23,20 @@
 
 > **Developed by [The Osiris Labs](https://www.theosirislabs.com)** - Building intelligent systems for tomorrow
 
+<div align="center">
+
+[![GitHub Stars](https://img.shields.io/github/stars/The-Osiris-Labs/IBIS-AGI-TRADER?style=social)](https://github.com/The-Osiris-Labs/IBIS-AGI-TRADER)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
+[![Status](https://img.shields.io/badge/status-Production--Ready-brightgreen.svg)]()
+
+**[Repository](https://github.com/The-Osiris-Labs/IBIS-AGI-TRADER)** • 
+**[Documentation](./README.md)** • 
+**[Issues](https://github.com/The-Osiris-Labs/IBIS-AGI-TRADER/issues)** • 
+**[Website](https://www.theosirislabs.com)**
+
+</div>
+
 ---
 
 ## ✨ Core Features
