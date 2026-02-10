@@ -1,65 +1,134 @@
+```
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                             🦅 I B I S 🦅                                   ║
+║                                                                              ║
+║              Intelligent Behavioral Intelligent Surveillance               ║
+║          Autonomous Cryptocurrency Trading & Market Intelligence           ║
+║                                                                              ║
+║              ⚡ Real-time Opportunity Detection                              ║
+║              🧠 Adaptive Learning System                                     ║
+║              📊 Multi-Source Intelligence                                    ║
+║              🔒 Enterprise-Grade Risk Management                             ║
+║                                                                              ║
+║                    Developed by The Osiris Labs                             ║
+║                    https://www.theosirislabs.com                            ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+```
+
 # 🦅 IBIS - Intelligent Trading System
 
 **An autonomous cryptocurrency trading agent that hunts opportunities, adapts to markets, and learns from every trade.**
 
----
-
-## What Is IBIS?
-
-IBIS isn't your typical trading bot. It doesn't blindly follow indicators or execute simple signals. Think of it as a digital trader that:
-
-- **Discovers opportunities on its own** - scans the market, finds the best setups
-- **Adapts to conditions** - knows when to be aggressive, when to be cautious
-- **Learns from experience** - gets smarter with every trade
-- **Protects your capital** - never risks more than it should
-
-The name IBIS comes from Egyptian mythology - a sacred bird associated with wisdom and knowledge. This agent is built to be wise about trading.
+> **Developed by [The Osiris Labs](https://www.theosirislabs.com)** - Building intelligent systems for tomorrow
 
 ---
 
-## The Philosophy
+## ✨ Core Features
+
+| Feature | Description |
+|---------|-------------|
+| **🔍 Real-Time Market Scanning** | Analyzes 1000+ crypto pairs continuously to find optimal entry points |
+| **🧠 Intelligent Scoring** | 40% technical + 30% AI analysis + 15% multi-timeframe + 10% volume + 5% sentiment |
+| **📈 Adaptive Trading** | Adjusts strategy based on market regime (bull, bear, volatile, flat) |
+| **🎓 Continuous Learning** | Tracks performance by strategy+regime to optimize over time |
+| **🔐 Risk Management** | Automatic stop-loss (5%), take-profit (1.5%), position limits (5 max) |
+| **⚡ High Frequency** | Executes trades every few minutes, 24/7 without human intervention |
+| **📊 Multi-Source Intelligence** | Integrates KuCoin, CoinGecko, Messari, CoinAPI, Nansen, Glassnode |
+| **💾 Persistent Memory** | Remembers every trade and learning, survives restarts |
+
+---
+
+## 🎯 Why IBIS?
+
+### The Problem
+Traditional trading bots are rigid. They follow static rules, don't adapt, and fail when markets shift. Traders lose money hoping their positions will work out.
+
+### The Solution
+**IBIS** is different. It's not a bot. It's an agent.
+
+- **Intelligent** - Uses AI to understand market context, not just indicators
+- **Adaptive** - Changes strategy when conditions change
+- **Learning** - Gets smarter with every trade, remembers what works
+- **Autonomous** - Makes decisions 24/7 without human input
+- **Protective** - Never risks more than it should, cuts losses fast
+
+### The Philosophy
 
 ```
 "NO HOPE. ONLY HUNT."
 ```
 
-Trading often fails because people *hope* a trade will work out. IBIS doesn't hope. It *hunts*.
-
-This means:
-- Only take trades with strong evidence
-- Cut losses fast, don't argue with the market
-- Let winners run, take profits systematically
-- Always adapt, never assume the market will cooperate
+IBIS doesn't hope a trade will work. It *hunts* - looking for high-probability setups with strong evidence. When it finds one, it strikes. When the trade turns against it, it exits immediately.
 
 ---
 
-## Quick Start
+## 🚀 Getting Started
 
-### Running IBIS
+### Step 1: Prerequisites
+```bash
+# Python 3.8+
+python --version
+
+# Required Python packages
+pip install -r requirements.txt
+
+# KuCoin account (free)
+# https://www.kucoin.com (for live trading)
+```
+
+### Step 2: Configure API Keys
+
+Edit `ibis/keys.env` with your KuCoin credentials:
 
 ```bash
-# Run with watchdog (auto-restart on crashes)
+nano ibis/keys.env
+```
+
+```env
+# REQUIRED - KuCoin (https://www.kucoin.com/account/api)
+KUCOIN_API_KEY=your_kucoin_api_key_here
+KUCOIN_API_SECRET=your_kucoin_api_secret_here
+KUCOIN_API_PASSPHRASE=your_kucoin_passphrase_here
+
+# RECOMMENDED - Premium Data (optional, for better signals)
+MESSARI_API_KEY=your_messari_key          # https://messari.io/api
+COINAPI_API_KEY=your_coinapi_key          # https://www.coinapi.io
+NANSEN_API_KEY=your_nansen_key            # https://app.nansen.ai
+
+# SAFETY FIRST - Start with paper trading
+PAPER_TRADING=true  # Set to false only when confident
+```
+
+### Step 3: Run IBIS
+
+```bash
+# First time - test with paper trading
 ./start_ibis.sh watchdog
 
-# Install as system service (24/7)
-./start_ibis.sh systemd
-
-# Check status
+# Check it's running
 ./start_ibis.sh status
 
-# Stop everything
-./start_ibis.sh stop
+# Watch the logs in real-time
+tail -f data/ibis_true.log
+
+# When ready for live trading (after testing!)
+# Edit keys.env and set PAPER_TRADING=false
+# Then restart:
+# ./start_ibis.sh stop && ./start_ibis.sh watchdog
 ```
 
-### Your First Run
-
-**Always start with paper trading!**
+### Running Options
 
 ```bash
-# Edit keys.env
-nano ibis/keys.env
-# Set PAPER_TRADING=true for testing
+./start_ibis.sh watchdog   # Recommended: auto-restart on crash
+./start_ibis.sh systemd    # Advanced: install as system service
+./start_ibis.sh status     # Check if running
+./start_ibis.sh stop       # Stop everything
 ```
+
+⚠️ **IMPORTANT:** Always test with paper trading first!
 
 ---
 
@@ -240,26 +309,75 @@ IBIS has multiple safety nets:
 
 ## Understanding the Output
 
-### Dashboard Symbols
+### Live Dashboard Example
 
 ```
-💰 $82.84    Total portfolio value
-🟢 +$0.50    Today's profit
-📊 5          Opportunities found
-🎯 87/100    Best opportunity score
-🔥 PRIMED     Market ready for action
-◐ NORMAL     Regular conditions
+╔═════════════════════════════════════════════════════════════════════╗
+║                    🦅 IBIS TRADING DASHBOARD                        ║
+╚═════════════════════════════════════════════════════════════════════╝
+
+Portfolio Status:
+  💰 Total Value:        $82.84 (+$2.15 | +2.7%)
+  📊 Available USDT:      $20.00
+  🔴 Active Positions:    5
+  
+Market Conditions:
+  📈 Regime:            VOLATILE (High opportunity zone)
+  🎯 Best Opportunity:  87/100 (STRONG BUY)
+  📍 Pairs Scanned:     1,247
+  ✅ Good Setups:       18
+
+Today's Performance:
+  ✅ Wins:              12 trades
+  ❌ Losses:            7 trades
+  📊 Win Rate:          63.2%
+  💵 P&L:               +$2.86 (3.6%)
+
+Active Positions:
+  BTC/USDT    │ +1.2%  │ Entry: $42,150 │ SL: $40,043 │ TP: $42,813
+  ETH/USDT    │ -0.8%  │ Entry: $2,285  │ SL: $2,171  │ TP: $2,319
+  SOL/USDT    │ +2.1%  │ Entry: $98.20  │ SL: $93.29  │ TP: $99.67
+  XRP/USDT    │ +0.5%  │ Entry: $0.615  │ SL: $0.584  │ TP: $0.624
+  DOT/USDT    │ -1.3%  │ Entry: $8.45   │ SL: $8.03   │ TP: $8.58
+
+Next Action: Scanning for entry (15s)
+System Health: ✅ NORMAL
 ```
 
-### Log Messages
+### Log Output Example
 
-| Symbol | Meaning |
-|--------|---------|
-| ✅ | Order success |
-| ❌ | Order failed |
-| 🔴 | Position closed |
-| 🧠 | Learning observation |
-| ⚠️ | Warning |
+```
+2026-02-10 19:42:15 ┃ 🦅 IBIS AGENT STARTED
+2026-02-10 19:42:22 ┃ 📊 Market regime: VOLATILE (opportunity zone)
+2026-02-10 19:42:45 ┃ 🔍 Scanned 1,247 pairs in 23.1s
+2026-02-10 19:42:46 ┃ 🎯 Found 18 quality setups (score >= 70)
+2026-02-10 19:43:02 ┃ ✅ BUY ORDER: 15.4 SOL @ $98.20
+                      │  Score: 87/100 │ Confidence: 92%
+                      │  SL: $93.29 (-5%) │ TP: $99.67 (+1.5%)
+2026-02-10 19:43:15 ┃ 📊 Learning: VOLATILE_aggressive_entry = 14 trades, 71% WR
+2026-02-10 19:55:30 ┃ 🟢 POSITION CLOSED: XRP/USDT
+                      │  Exit Reason: TAKE_PROFIT (+1.51%)
+                      │  P&L: +$0.41
+2026-02-10 19:56:12 ┃ ✅ BUY ORDER: 8 XRP @ $0.615
+                      │  Score: 76/100 │ Confidence: 85%
+2026-02-10 20:02:45 ┃ 📈 Daily Summary:
+                      │  Trades: 19 │ W: 12 │ L: 7 │ WR: 63.2%
+                      │  P&L: +$2.86 │ Time: 78.1 minutes
+```
+
+---
+
+## Dashboard Symbols
+
+```
+💰 Portfolio value             🎯 Best opportunity score
+🟢 Profit/positive             🔴 Loss/negative
+📊 Data/metrics                ✅ Success/trade executed
+❌ Failure/error               ⚠️ Warning/alert
+🔍 Scanning activity           📈 Market moving up
+📉 Market moving down          ◐ Market regime indicator
+🧠 Learning system active      🔥 Prime opportunity
+```
 
 ---
 
@@ -394,12 +512,112 @@ This software is provided "as is" for educational purposes. Never trade with mon
 
 ---
 
-## The Name
+---
 
-In ancient Egyptian mythology, the ibis was sacred to Thoth - god of wisdom, writing, and knowledge. Egyptians believed the ibis embodied wisdom and served as a messenger between worlds.
+## 📖 The IBIS Legend
 
-Just like the ibis, this agent is designed to be wise about trading - observing patterns, adapting to conditions, and making informed decisions.
+In ancient Egyptian mythology, the ibis was sacred to **Thoth** - god of wisdom, writing, and knowledge. 
+
+The Egyptians believed the ibis embodied divine wisdom and served as a messenger between the mortal and divine worlds. It was revered for its ability to:
+
+- **Observe with precision** - keenly aware of its surroundings
+- **Adapt to conditions** - thriving in different environments  
+- **Navigate wisely** - finding the best path forward
+- **Communicate effectively** - bridging different realms
+
+**IBIS the trading agent embodies these same qualities** - observing markets with precision, adapting to conditions, navigating wisely, and communicating insights to its operators.
 
 ---
 
-**Happy hunting. 🦅**
+## 📚 Documentation
+
+| Document | Purpose |
+|----------|---------|
+| **[README.md](./README.md)** | You are here - project overview |
+| **[DEVELOPERS.md](./DEVELOPERS.md)** | Technical architecture & code walkthrough |
+| **[QUICKREF.md](./QUICKREF.md)** | Quick reference for commands & troubleshooting |
+| **[AGENTS.md](./AGENTS.md)** | Guide for AI assistants & automation |
+| **[CONTRIBUTING.md](./CONTRIBUTING.md)** | How to contribute to IBIS |
+| **[DEPLOYMENT.md](./DEPLOYMENT.md)** | Production deployment guide |
+| **[CHANGELOG.md](./CHANGELOG.md)** | Version history & releases |
+
+---
+
+## 🔗 Links & Resources
+
+### Exchanges
+- **[KuCoin](https://www.kucoin.com)** - Primary trading exchange
+- **[Binance](https://www.binance.com)** - Comparison & reference data
+
+### Market Data APIs
+- **[CoinGecko](https://www.coingecko.com)** - Free market data (no API key needed)
+- **[Messari](https://messari.io)** - Professional metrics & insights
+- **[CoinAPI](https://www.coinapi.io)** - Real-time cryptocurrency data
+- **[Nansen](https://app.nansen.ai)** - Smart money tracking
+- **[Glassnode](https://glassnode.com)** - On-chain analytics
+
+### Developer Resources
+- **[The Osiris Labs](https://www.theosirislabs.com)** - Project home
+- **[GitHub Repository](https://github.com/The-Osiris-Labs/IBIS-AGI-TRADER)** - Source code
+- **[Issue Tracker](https://github.com/The-Osiris-Labs/IBIS-AGI-TRADER/issues)** - Bug reports & features
+
+---
+
+## 📜 License
+
+IBIS is released under the MIT License. See [LICENSE](./LICENSE) for details.
+
+---
+
+## ⚖️ Disclaimer
+
+**Trading cryptocurrency carries SIGNIFICANT RISK.** 
+
+- Past performance does not guarantee future results
+- You can lose money trading, even with IBIS
+- Only trade with capital you can afford to lose
+- This software is provided "as is" for educational purposes
+- The authors take no responsibility for trading losses
+
+### Risk Management Reminder
+IBIS has built-in protections (stop-loss, position limits, regime detection), but they can't eliminate risk. Markets can move faster than orders execute. Use paper trading to understand the system before risking real money.
+
+---
+
+## 🤝 Community & Support
+
+### Getting Help
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/The-Osiris-Labs/IBIS-AGI-TRADER/issues)
+- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/The-Osiris-Labs/IBIS-AGI-TRADER/discussions)
+- **Documentation**: Check [QUICKREF.md](./QUICKREF.md) for common questions
+
+### Contributing
+Want to improve IBIS? See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
+
+---
+
+## 🏆 The IBIS Manifesto
+
+> **"Wisdom is not about being right all the time.**
+>
+> **It's about learning from experience, adapting to change, and always protecting what matters.**
+>
+> **IBIS doesn't hunt for perfect trades.**
+>
+> **It hunts for probable ones, executes with discipline, and learns from every outcome.**
+>
+> **No hope. Only hunt."**
+
+---
+
+<div align="center">
+
+### 🦅 Built with intelligence. Designed for markets. Trusted by traders. 🦅
+
+**[IBIS - Autonomous Intelligent Trading](https://github.com/The-Osiris-Labs/IBIS-AGI-TRADER)**
+
+Developed by **[The Osiris Labs](https://www.theosirislabs.com)**
+
+*"Wisdom through learning. Profit through discipline."*
+
+</div>
