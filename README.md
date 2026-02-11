@@ -210,16 +210,26 @@ tail -f data/ibis_true.log
 
 ---
 
-## 📊 Current Performance
+## 📊 System Capabilities
 
-| Metric | Value |
-|--------|-------|
-| Portfolio Value | ~$70 |
-| Total Trades | 72 |
-| Win Rate | 51% |
-| Best Strategy | `VOLATILE_take_profit` (100% WR) |
-| Markets Scanned | 900+ |
-| Scan Interval | ~10 seconds |
+| Capability | Value |
+|------------|-------|
+| Markets Scanned | 900+ crypto pairs |
+| Scan Frequency | Continuous (configurable) |
+| Technical Indicators | 8 (RSI, MACD, BB, MA, ATR, OBV, Stochastic, VWAP) |
+| Intelligence Sources | 6 (technical, sentiment, on-chain, news, whale, volume) |
+| Market Regimes | 8 (bull, bear, volatile, flat...) |
+| Risk Controls | Hard stop-loss, take-profit, position limits |
+| Learning | Persistent memory across restarts |
+
+### Production-Ready Features
+
+- **Zero Human Intervention** - Runs 24/7 with watchdog auto-restart
+- **Hard Risk Limits** - Stop-loss, position caps, circuit breakers
+- **Multi-Source Intelligence** - Technical + sentiment + on-chain + volume
+- **Adaptive Strategies** - 8 regimes, 8+ strategy modes
+- **Persistent Learning** - Remembers performance by strategy+regime
+- **Production Security** - API keys isolated, data gitignored
 
 ---
 
