@@ -2353,13 +2353,15 @@ class IBISTrueAgent:
         if available < min_trade:
             return 0
 
-        base_pct = TRADING.POSITION.BASE_POSITION_PCT
+        base_pct = TRADING.POSITION.BASE_POSITION_PCT / 100  # Convert to decimal
+        max_pct = TRADING.POSITION.MAX_POSITION_PCT / 100
         score_factor = opportunity_score / 100
         vol_adjustment = 1.0 / (1 + volatility)
 
         position_size = available * base_pct * score_factor * vol_adjustment
         position_size = max(min_trade, position_size)
-        position_size = min(position_size, available * TRADING.POSITION.MAX_POSITION_PCT)
+        position_size = min(position_size, available * max_pct)
+        position_size = min(position_size, TRADING.POSITION.MAX_CAPITAL_PER_TRADE)  # Enforce max per trade
 
         return position_size
 
@@ -3192,26 +3194,27 @@ class IBISTrueAgent:
             candles_5m = await self.client.get_candles(f"{symbol}-USDT", "5m", limit=20)
 
             # Calculate smart stops (adaptive based on volatility, averages ~2%)
-            # stop_data = await self.enhanced.calculate_smart_stop_levels(
-            #     entry_price=price, direction="LONG", candles=candles_5m, timeframe="5m"
-            # )
+            try:
+                stop_data = await self.enhanced.calculate_smart_stop_levels(
+                    entry_price=price, direction="LONG", candles=candles_5m, timeframe="5m"
+                )
+                
+                tp = stop_data["take_profit"]
+                sl_pct = stop_data["stop_distance_pct"] / 100
+                tp_pct = stop_data["tp_distance_pct"] / 100
 
-            # Use default SL/TP if enhanced data not available
-            sl = price * (1 - TRADING.RISK.STOP_LOSS_PCT)
-            tp = price * (1 + TRADING.RISK.TAKE_PROFIT_PCT)
-            sl_pct = TRADING.RISK.STOP_LOSS_PCT
-            tp_pct = TRADING.RISK.TAKE_PROFIT_PCT
-            tp = stop_data["take_profit"]
-            sl_pct = stop_data["stop_distance_pct"] / 100
-            tp_pct = stop_data["tp_distance_pct"] / 100
-
-            self.log_event(
-                f"      🎯 SMART STOPS: SL {stop_data['stop_distance_pct']:.2f}% ({stop_data['volatility_mode']}) | "
-                f"TP {stop_data['tp_distance_pct']:.2f}%"
-            )
-
-        except Exception as e:
-            self.log_event(f"      ⚠️ Smart stops failed, using defaults: {e}")
+                self.log_event(
+                    f"      🎯 SMART STOPS: SL {stop_data['stop_distance_pct']:.2f}% ({stop_data['volatility_mode']}) | "
+                    f"TP {stop_data['tp_distance_pct']:.2f}%"
+                )
+                
+            except Exception as e:
+                self.log_event(f"      ⚠️ Smart stops calculation failed: {e}")
+                # Use default SL/TP if enhanced data not available
+                sl = price * (1 - TRADING.RISK.STOP_LOSS_PCT)
+                tp = price * (1 + TRADING.RISK.TAKE_PROFIT_PCT)
+                sl_pct = TRADING.RISK.STOP_LOSS_PCT
+                tp_pct = TRADING.RISK.TAKE_PROFIT_PCT
             # Fallback to strategy defaults
             base_tp_pct = (
                 strategy.get("target_profit") if strategy.get("target_profit") is not None else 0.02
@@ -3793,7 +3796,15 @@ class IBISTrueAgent:
                     pass
 
             except Exception as e:
-                self.log_event(f"   [PENDING CHECK] {symbol}: {e}")
+                error_str = str(e)
+                if "The order does not exist" in error_str or "order.*not.*exist" in error_str:
+                    # Order no longer exists on exchange, remove from pending
+                    self.log_event(f"   [ORDER EXPIRED] {symbol}: Order no longer exists on exchange")
+                    if symbol in buy_orders:
+                        del buy_orders[symbol]
+                        self._save_state()
+                else:
+                    self.log_event(f"   [PENDING CHECK] {symbol}: {e}")
                 pass
 
         if filled_count > 0:

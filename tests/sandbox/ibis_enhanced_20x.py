@@ -118,9 +118,7 @@ class EnhancedRiskManager:
     ) -> float:
         """Dynamic position sizing based on confidence, volatility, and deep scoring"""
         # Get configuration from TRADING constants for consistency
-        base_pct = self.config.get(
-            "base_position_pct", TRADING.POSITION.BASE_POSITION_PCT
-        )
+        base_pct = self.config.get("base_position_pct", TRADING.POSITION.BASE_POSITION_PCT)
         max_pct = self.config.get("max_position_pct", TRADING.POSITION.MAX_POSITION_PCT)
 
         # 🎯 FULL CAPITAL UTILIZATION FOR EXCEPTIONAL OPPORTUNITIES
@@ -159,9 +157,7 @@ class EnhancedRiskManager:
             volatility_multiplier = 1.0
 
         # 🎯 POSITION DIVERSIFICATION (Capital management)
-        position_multiplier = 1.0 / (
-            1 + current_positions * 0.15
-        )  # More aggressive reduction
+        position_multiplier = 1.0 / (1 + current_positions * 0.15)  # More aggressive reduction
 
         # 🎯 FEAR & GREED ADJUSTMENT (Contrarian)
         fg_index = self.config.get("fear_greed_index", 50)
@@ -186,24 +182,19 @@ class EnhancedRiskManager:
         position_size = (available_capital * size_pct) / 100
 
         # Apply maximum position percentage constraint
-        max_position_size = (
-            available_capital * TRADING.POSITION.MAX_POSITION_PCT
-        ) / 100
+        max_position_size = (available_capital * TRADING.POSITION.MAX_POSITION_PCT) / 100
 
         # For small available capital, prioritize minimum trade size over percentage limit
         # This ensures we can execute trades when capital is limited
-        if (
-            available_capital <= 50
-        ):  # For small accounts (<= $50), allow larger percentage
+        if available_capital <= 50:  # For small accounts (<= $50), allow larger percentage
             effective_min_size = TRADING.POSITION.MIN_CAPITAL_PER_TRADE
-            effective_max_size = min(
-                TRADING.POSITION.MAX_CAPITAL_PER_TRADE, available_capital
-            )
+            effective_max_size = min(TRADING.POSITION.MAX_CAPITAL_PER_TRADE, available_capital)
+            # FIX: Don't allow position size to exceed available capital
+            if effective_min_size > available_capital:
+                return 0
         else:
             effective_min_size = TRADING.POSITION.MIN_CAPITAL_PER_TRADE
-            effective_max_size = min(
-                TRADING.POSITION.MAX_CAPITAL_PER_TRADE, max_position_size
-            )
+            effective_max_size = min(TRADING.POSITION.MAX_CAPITAL_PER_TRADE, max_position_size)
 
         # Apply constraints
         if position_size < effective_min_size:
@@ -351,9 +342,7 @@ class MultiTimeframeAnalyzer:
                 "4hour": 12,
             }.get(tf_code, 20)
 
-            candles = await self.client.get_candles(
-                f"{symbol}-USDT", tf_code, candle_count
-            )
+            candles = await self.client.get_candles(f"{symbol}-USDT", tf_code, candle_count)
 
             if not candles:
                 return {
@@ -525,9 +514,7 @@ class StrategySelector:
             strategy["target_pct"] *= 0.8
             strategy["max_positions"] = max(strategy["max_positions"] - 2, 3)
         else:
-            strategy["max_positions"] = float(
-                "inf"
-            )  # Unlimited positions for normal confidence
+            strategy["max_positions"] = float("inf")  # Unlimited positions for normal confidence
 
         return strategy
 
@@ -575,21 +562,12 @@ class PerformanceTracker:
 
         total_pnl = sum(t["pnl"] for t in self.trades)
         avg_win = (
-            sum(t["pnl"] for t in winning_trades) / len(winning_trades)
-            if winning_trades
-            else 0
+            sum(t["pnl"] for t in winning_trades) / len(winning_trades) if winning_trades else 0
         )
-        avg_loss = (
-            sum(t["pnl"] for t in losing_trades) / len(losing_trades)
-            if losing_trades
-            else 0
-        )
+        avg_loss = sum(t["pnl"] for t in losing_trades) / len(losing_trades) if losing_trades else 0
 
         profit_factor = (
-            abs(
-                sum(t["pnl"] for t in winning_trades)
-                / sum(t["pnl"] for t in losing_trades)
-            )
+            abs(sum(t["pnl"] for t in winning_trades) / sum(t["pnl"] for t in losing_trades))
             if losing_trades and sum(t["pnl"] for t in losing_trades) != 0
             else 0
         )
@@ -604,9 +582,7 @@ class PerformanceTracker:
             "avg_loss": avg_loss,
             "profit_factor": profit_factor,
             "regime_performance": self.regime_performance,
-            "best_regime": max(
-                self.regime_performance.items(), key=lambda x: x[1]["total_pnl"]
-            )[0]
+            "best_regime": max(self.regime_performance.items(), key=lambda x: x[1]["total_pnl"])[0]
             if self.regime_performance
             else "unknown",
         }

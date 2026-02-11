@@ -888,8 +888,37 @@ class MarketData:
             "pressure": "BUY" if bid_volume > ask_volume else "SELL",
         }
 
-    async def get_volume_profile(self, symbol: str, granularity: int = 60) -> Dict:
-        candles = await self.client.get_candles(symbol, granularity)
+    async def get_volume_profile(self, symbol: str, granularity: str = "1min") -> Dict:
+        """
+        Get volume profile for a symbol.
+
+        Args:
+            symbol: Trading symbol (e.g., "BTC-USDT")
+            granularity: Candle type (KuCoin format: 1min, 5min, 15min, 1h, 4h, 1d)
+
+        Returns:
+            Volume profile data including VWAP and point of control
+        """
+        # Map granularity to KuCoin candle type format
+        candle_type = granularity
+        if isinstance(granularity, int):
+            # Convert seconds to KuCoin format
+            if granularity == 60:
+                candle_type = "1min"
+            elif granularity == 300:
+                candle_type = "5min"
+            elif granularity == 900:
+                candle_type = "15min"
+            elif granularity == 3600:
+                candle_type = "1h"
+            elif granularity == 14400:
+                candle_type = "4h"
+            elif granularity == 86400:
+                candle_type = "1d"
+            else:
+                candle_type = "1min"  # Default
+
+        candles = await self.client.get_candles(symbol, candle_type)
 
         prices = []
         volumes = []
