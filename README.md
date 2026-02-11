@@ -1,6 +1,24 @@
+```
+╭─────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                         │
+│                                    ██╗██████╗ ██╗███████╗                              │
+│                                    ██║██╔══██╗██║██╔════╝                              │
+│                                    ██║██████╔╝██║███████╗                              │
+│                                    ██║██╔══██╗██║╚════██║                              │
+│                                    ██║██████╔╝██║███████║                              │
+│                                    ╚═╝╚═════╝ ╚═╝╚══════╝                              │
+│                                                                                         │
+│                            🦅  Sacred Hunter of Markets  🦅                            │
+│                    Messenger of Thoth • Keeper of Balance • Oracle of Hunts            │
+│                                                                                         │
+│                          "NO HOPE. ONLY HUNT."  •  "OBSERVE. ADAPT. STRIKE."           │
+│                                                                                         │
+╰─────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
 # 🦅 IBIS - The Trading Hawk
 
-**IBIS is an autonomous trading agent that watches crypto markets, finds opportunities, executes trades, and learns from every cycle.**
+**An autonomous trading agent that watches crypto markets, finds opportunities, executes trades, and learns from every cycle.**
 
 Think of it as a hawk perched on your shoulder, constantly scanning the horizon for prey. When it spots something promising (score ≥ 70), it strikes. When conditions turn dangerous, it protects your capital. And every day, it gets a little smarter.
 
@@ -16,6 +34,16 @@ IBIS isn't your typical trading bot that just buys green candles. It's a complet
 4. **Decides** - Buys when score ≥ 70, otherwise stays on the sidelines
 5. **Protects** - Auto-sells at -5% loss or +1.5% profit
 6. **Learns** - Remembers which strategies work in which market conditions
+
+---
+
+## Philosophy
+
+```
+"NO HOPE. ONLY HUNT."
+```
+
+IBIS doesn't hope markets will go up. It doesn't hope a trade will recover. It hunts opportunities where the odds are in its favor, takes profits quickly, and cuts losses faster.
 
 ---
 
@@ -46,14 +74,16 @@ IBIS isn't your typical trading bot that just buys green candles. It's a complet
 
 IBIS adapts its behavior based on current market conditions:
 
-- **STRONG_BULL** - Rampant optimism, buy everything
-- **BULL** - Mild optimism, buy quality setups
-- **NORMAL** - Average day, standard approach
-- **VOLATILE** - Quick moves both ways, be careful
-- **FLAT** - Nothing happening, rest
-- **BEAR** - Downtrend, be defensive
-- **STRONG_BEAR** - Blood in the streets, stay out
-- **UNKNOWN** - Can't figure it out, proceed with caution
+| Regime | Characteristics | IBIS Behavior |
+|--------|-----------------|----------------|
+| **STRONG_BULL** | Raging optimism | Aggressive buying |
+| **BULL** | Mild optimism | Standard buys |
+| **NORMAL** | Average conditions | Cautious approach |
+| **VOLATILE** | Quick moves, uncertainty | Smaller positions |
+| **FLAT** | No direction | Wait for clarity |
+| **BEAR** | Downtrend | Defensive |
+| **STRONG_BEAR** | Blood in streets | Stay out |
+| **UNKNOWN** | Unclear | Extra cautious |
 
 ---
 
@@ -69,6 +99,18 @@ nano ibis/keys.env
 # 3. Watch what it does
 tail -f data/ibis_true.log
 ```
+
+---
+
+## Documentation
+
+| Guide | Purpose |
+|-------|---------|
+| [QUICKSTART.md](QUICKSTART.md) | Get up and running in 10 minutes |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Understand how IBIS works |
+| [CONFIG.md](CONFIG.md) | Customize settings |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Add new features |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Fix problems |
 
 ---
 
@@ -110,16 +152,15 @@ The agent learns from every trade and adapts its behavior over time.
 
 ## For Developers
 
-Want to understand how IBIS works under the hood? Check out:
+Want to understand how IBIS works under the hood?
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System design and data flow
 - [CONFIG.md](CONFIG.md) - All configuration options explained
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues and fixes
 - [DEVELOPMENT.md](DEVELOPMENT.md) - Adding new features
 
 ---
 
-## Current Performance (As of Feb 2026)
+## Performance (Feb 2026)
 
 | Metric | Value |
 |--------|-------|
@@ -127,14 +168,6 @@ Want to understand how IBIS works under the hood? Check out:
 | Total Trades | 72 |
 | Win Rate | 51% |
 | Best Strategy | `VOLATILE_take_profit` (100% WR) |
-
----
-
-## Philosophy
-
-IBIS follows a simple principle: **no hope, only hunt.**
-
-It doesn't hope markets will go up. It doesn't hope a trade will recover. It hunts opportunities where the odds are in its favor, takes profits quickly, and cuts losses faster.
 
 ---
 
