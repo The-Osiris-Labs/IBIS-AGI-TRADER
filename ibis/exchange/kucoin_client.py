@@ -93,9 +93,7 @@ class StaticResolver(AbstractResolver):
         await self._fallback.close()
 
 
-DEFAULT_TIMEOUT = aiohttp.ClientTimeout(
-    total=30, connect=10, sock_read=15, sock_connect=15
-)
+DEFAULT_TIMEOUT = aiohttp.ClientTimeout(total=30, connect=10, sock_read=15, sock_connect=15)
 MAX_RETRIES = 3
 RETRY_DELAY = 1.0
 
@@ -263,9 +261,7 @@ class KuCoinClient:
         self.paper_trading = paper_trading or EnvConfig.PAPER_TRADING
         self.dns_servers = []
         if EnvConfig.KUCOIN_DNS:
-            self.dns_servers = [
-                s.strip() for s in EnvConfig.KUCOIN_DNS.split(",") if s.strip()
-            ]
+            self.dns_servers = [s.strip() for s in EnvConfig.KUCOIN_DNS.split(",") if s.strip()]
         self.api_host = EnvConfig.KUCOIN_API_HOST or "api.kucoin.com"
         self.api_ip = EnvConfig.KUCOIN_API_IP
 
@@ -294,12 +290,8 @@ class KuCoinClient:
                 # Prefer custom DNS via system resolver fallback if available
                 resolver = StaticResolver({})
             if resolver:
-                connector = aiohttp.TCPConnector(
-                    resolver=resolver, family=socket.AF_INET
-                )
-                self._session = aiohttp.ClientSession(
-                    timeout=DEFAULT_TIMEOUT, connector=connector
-                )
+                connector = aiohttp.TCPConnector(resolver=resolver, family=socket.AF_INET)
+                self._session = aiohttp.ClientSession(timeout=DEFAULT_TIMEOUT, connector=connector)
             else:
                 self._session = aiohttp.ClientSession(timeout=DEFAULT_TIMEOUT)
         return self._session
@@ -308,9 +300,7 @@ class KuCoinClient:
         if self._session and not self._session.closed:
             await self._session.close()
 
-    def _sign(
-        self, method: str, path: str, query: str = "", body: str = ""
-    ) -> Dict[str, str]:
+    def _sign(self, method: str, path: str, query: str = "", body: str = "") -> Dict[str, str]:
         timestamp = str(int(time.time() * 1000))
 
         if "?" in path:
@@ -364,9 +354,7 @@ class KuCoinClient:
                 last_error = e
                 if attempt < MAX_RETRIES - 1:
                     wait_time = RETRY_DELAY * (2**attempt)
-                    print(
-                        f"Timeout on attempt {attempt + 1}, retrying in {wait_time}s..."
-                    )
+                    print(f"Timeout on attempt {attempt + 1}, retrying in {wait_time}s...")
                     await asyncio.sleep(wait_time)
             except Exception as e:
                 last_error = e
@@ -385,9 +373,7 @@ class KuCoinClient:
                     await asyncio.sleep(wait_time)
         raise Exception(f"Max retries exceeded: {last_error}")
 
-    async def _request(
-        self, method: str, path: str, query: str = "", body: str = ""
-    ) -> Dict:
+    async def _request(self, method: str, path: str, query: str = "", body: str = "") -> Dict:
         session = await self._get_session()
         headers = {}
 
@@ -425,9 +411,7 @@ class KuCoinClient:
         return await self._request_with_retry("GET", "/api/v1/accounts")
 
     async def get_account(self, currency: str) -> Optional[Dict]:
-        accounts = await self._request_with_retry(
-            "GET", f"/api/v1/accounts?currency={currency}"
-        )
+        accounts = await self._request_with_retry("GET", f"/api/v1/accounts?currency={currency}")
         return accounts[0] if accounts else None
 
     async def get_balance(self, currency: str) -> float:
@@ -492,9 +476,7 @@ class KuCoinClient:
 
         return balances
 
-    async def get_basic_orders(
-        self, symbol: str = "", status: str = "active"
-    ) -> List[Dict]:
+    async def get_basic_orders(self, symbol: str = "", status: str = "active") -> List[Dict]:
         """Get basic spot orders (limit, market)"""
         params = []
         if symbol:
@@ -561,9 +543,7 @@ class KuCoinClient:
             data = await self._request("GET", "/api/v1/orders")
             items = data.get("items", []) if data else []
             filled_orders = [
-                o
-                for o in items
-                if o.get("isActive") == False and o.get("dealSize", "0") != "0"
+                o for o in items if o.get("isActive") == False and o.get("dealSize", "0") != "0"
             ]
 
             # Enhanced order details with price and fee information
@@ -595,9 +575,7 @@ class KuCoinClient:
 
                     # Calculate trade value for validation
                     trade_value = (
-                        deal_funds
-                        if deal_funds > 0
-                        else enhanced_order["price"] * deal_size_val
+                        deal_funds if deal_funds > 0 else enhanced_order["price"] * deal_size_val
                     )
 
                     # Parse fee - handle string or numeric values
@@ -623,11 +601,7 @@ class KuCoinClient:
                         # Cap fee at reasonable maximum for calculation purposes
                         enhanced_order["fee"] = max_acceptable_fee
                         enhanced_order["fee_anomaly"] = True
-                    elif (
-                        actual_fee < min_acceptable_fee
-                        and actual_fee > 0
-                        and trade_value > 0
-                    ):
+                    elif actual_fee < min_acceptable_fee and actual_fee > 0 and trade_value > 0:
                         # Fee is suspiciously low
                         enhanced_order["fee"] = actual_fee
                         enhanced_order["fee_anomaly"] = False
@@ -642,9 +616,7 @@ class KuCoinClient:
                         enhanced_order["fee_rate"] = 0.001  # Default 0.1%
 
                 except Exception as e:
-                    print(
-                        f"Error processing order {order.get('orderId', 'unknown')}: {e}"
-                    )
+                    print(f"Error processing order {order.get('orderId', 'unknown')}: {e}")
                     enhanced_order["price"] = 0.0
                     enhanced_order["fee"] = 0.0
                     enhanced_order["fee_anomaly"] = False
@@ -683,9 +655,7 @@ class KuCoinClient:
 
     async def get_24h_stats(self, symbol: str) -> Dict:
         """Get 24h stats for a symbol."""
-        return await self._request_with_retry(
-            "GET", f"/api/v1/market/stats?symbol={symbol}"
-        )
+        return await self._request_with_retry("GET", f"/api/v1/market/stats?symbol={symbol}")
 
     async def get_candles(
         self,
@@ -756,9 +726,7 @@ class KuCoinClient:
         else:
             return await self._live_create_order(order_data)
 
-    async def create_market_order(
-        self, symbol: str, side: str, size: float
-    ) -> TradeOrder:
+    async def create_market_order(self, symbol: str, side: str, size: float) -> TradeOrder:
         """Alias for engine compatibility."""
         return await self.create_order(symbol, side, "market", 0, size)
 
@@ -768,9 +736,7 @@ class KuCoinClient:
         """Alias for engine compatibility."""
         return await self.create_order(symbol, side, "limit", price, size)
 
-    async def place_market_order(
-        self, symbol: str, side: str, size: float
-    ) -> TradeOrder:
+    async def place_market_order(self, symbol: str, side: str, size: float) -> TradeOrder:
         """Place a market order."""
         return await self.create_order(symbol, side, "market", 0, size)
 
@@ -817,9 +783,7 @@ class KuCoinClient:
                 cost = execution_price * execution_size
                 if self._paper_balance[quote] >= cost:
                     self._paper_balance[quote] -= cost
-                    self._paper_balance[base] = (
-                        self._paper_balance.get(base, 0) + execution_size
-                    )
+                    self._paper_balance[base] = self._paper_balance.get(base, 0) + execution_size
             else:
                 if self._paper_balance.get(base, 0) >= execution_size:
                     self._paper_balance[base] -= execution_size
@@ -858,6 +822,38 @@ class KuCoinClient:
 
     def get_paper_balance(self) -> Dict[str, float]:
         return self._paper_balance.copy()
+
+    async def get_funding_rate(self, symbol: str) -> Dict:
+        try:
+            data = await self._request_with_retry("GET", f"/api/v1/funding-rate/{symbol}")
+            return {
+                "symbol": symbol,
+                "funding_rate": float(data.get("fundingRate", 0)),
+                "time": data.get("time", 0),
+            }
+        except Exception:
+            return {"symbol": symbol, "funding_rate": 0, "time": 0}
+
+    async def get_open_interest(self, symbol: str) -> Dict:
+        try:
+            data = await self._request_with_retry("GET", f"/api/v1/openInterest/{symbol}")
+            return {
+                "symbol": symbol,
+                "open_interest": float(data.get("openInterest", 0)),
+                "timestamp": data.get("time", 0),
+            }
+        except Exception:
+            return {"symbol": symbol, "open_interest": 0, "timestamp": 0}
+
+    async def get_derivatives_metrics(self, symbol: str) -> Dict:
+        funding = await self.get_funding_rate(symbol)
+        oi = await self.get_open_interest(symbol)
+        return {
+            "funding_rate": funding.get("funding_rate", 0),
+            "funding_time": funding.get("time", 0),
+            "open_interest": oi.get("open_interest", 0),
+            "oi_timestamp": oi.get("timestamp", 0),
+        }
 
     async def close(self):
         if self._session and not self._session.closed:
@@ -903,11 +899,7 @@ class MarketData:
             volumes.append(c.volume)
 
         total_volume = sum(volumes)
-        vwap = (
-            sum(p * v for p, v in zip(prices, volumes)) / total_volume
-            if total_volume > 0
-            else 0
-        )
+        vwap = sum(p * v for p, v in zip(prices, volumes)) / total_volume if total_volume > 0 else 0
 
         volume_by_price = {}
         for p, v in zip(prices, volumes):
@@ -927,9 +919,7 @@ class TradingClient:
     def __init__(self, client: KuCoinClient):
         self.client = client
 
-    async def place_market_order(
-        self, symbol: str, side: str, size: float
-    ) -> TradeOrder:
+    async def place_market_order(self, symbol: str, side: str, size: float) -> TradeOrder:
         return await self.client.create_order(symbol, side, "market", 0, size)
 
     async def place_limit_order(
@@ -960,9 +950,7 @@ class TradingClient:
 
     async def get_open_orders(self, symbol: str = "") -> List[TradeOrder]:
         if self.client.paper_trading:
-            orders = [
-                o for o in self.client._paper_orders.values() if o.status == "ACTIVE"
-            ]
+            orders = [o for o in self.client._paper_orders.values() if o.status == "ACTIVE"]
             if symbol:
                 orders = [o for o in orders if o.symbol == symbol]
             return orders
@@ -977,10 +965,7 @@ class TradingClient:
         if self.client.paper_trading:
             for order_id in list(self.client._paper_orders.keys()):
                 if self.client._paper_orders[order_id].status == "ACTIVE":
-                    if (
-                        not symbol
-                        or self.client._paper_orders[order_id].symbol == symbol
-                    ):
+                    if not symbol or self.client._paper_orders[order_id].symbol == symbol:
                         await self.client.cancel_order(order_id)
         else:
             await self.client._request_with_retry(

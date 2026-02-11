@@ -42,6 +42,11 @@ class EnhancedIntelStreams:
         self.cache = {}
         self.vader = None
         self._init_vader()
+        self._gapless_available = None
+        self._chaindl_available = None
+        self._cryptofeed_available = None
+        self._ccxt_available = None
+        self._binance_missing_symbols = set()
 
     def _init_vader(self):
         """Initialize VADER sentiment analyzer"""
@@ -57,9 +62,7 @@ class EnhancedIntelStreams:
         """Get cached data"""
         if key in self.cache:
             data, timestamp = self.cache[key]
-            if (
-                datetime.now() - timestamp
-            ).total_seconds() < self.config.cache_duration:
+            if (datetime.now() - timestamp).total_seconds() < self.config.cache_duration:
                 return data
         return None
 
@@ -68,9 +71,7 @@ class EnhancedIntelStreams:
 
     async def get_session(self):
         if self.session is None:
-            self.session = aiohttp.ClientSession(
-                headers={"User-Agent": "IBIS-Intelligence/1.0"}
-            )
+            self.session = aiohttp.ClientSession(headers={"User-Agent": "IBIS-Intelligence/1.0"})
         return self.session
 
     async def close(self):
@@ -85,23 +86,42 @@ class EnhancedIntelStreams:
         Get order book metrics from cryptofeed
         Returns: bid_depth, ask_depth, imbalance, spread
         """
-        try:
-            import cryptofeed
-            from cryptofeed import FeedHandler
-            from cryptofeed.defines import L2_BOOK, BID, ASK
-
-            # For now, return structure - full integration requires callback setup
+        if self._cryptofeed_available is False:
             return {
                 "bid_depth": 0,
                 "ask_depth": 0,
                 "imbalance": 0.5,
                 "spread": 0.0,
                 "source": "cryptofeed",
-                "timestamp": datetime.now().isoformat(),
+                "unavailable": True,
             }
-        except Exception as e:
-            logger.warning(f"⚠️ Cryptofeed orderbook error: {e}")
-            return {"error": str(e)}
+
+        try:
+            if self._cryptofeed_available is None:
+                import cryptofeed
+                from cryptofeed import FeedHandler
+                from cryptofeed.defines import L2_BOOK, BID, ASK
+
+                self._cryptofeed_available = True
+        except ImportError:
+            self._cryptofeed_available = False
+            return {
+                "bid_depth": 0,
+                "ask_depth": 0,
+                "imbalance": 0.5,
+                "spread": 0.0,
+                "source": "cryptofeed",
+                "unavailable": True,
+            }
+
+        return {
+            "bid_depth": 0,
+            "ask_depth": 0,
+            "imbalance": 0.5,
+            "spread": 0.0,
+            "source": "cryptofeed",
+            "timestamp": datetime.now().isoformat(),
+        }
 
     # ============================================
     # GAPLESS-CRYPTO-DATA - Order Flow Analysis
@@ -111,8 +131,19 @@ class EnhancedIntelStreams:
         Calculate order flow metrics using gapless-crypto-data
         Returns: buy_pressure, volume_imbalance, taker_ratio
         """
+        if self._gapless_available is False:
+            return {"score": 50, "source": "gapless", "unavailable": True}
+
         try:
-            import gapless_crypto_data as gcd
+            if self._gapless_available is None:
+                import gapless_crypto_data as gcd
+
+                self._gapless_available = True
+        except ImportError:
+            self._gapless_available = False
+            return {"score": 50, "source": "gapless", "unavailable": True}
+
+        try:
             from datetime import datetime, timedelta
 
             # Calculate date range (last 100 hours)
@@ -144,12 +175,8 @@ class EnhancedIntelStreams:
             taker_ratio = buy_volume / total_volume if total_volume > 0 else 0.5
 
             # Volume trend
-            recent_vol = (
-                df["volume"].iloc[-5:].mean() if len(df) >= 5 else df["volume"].mean()
-            )
-            older_vol = (
-                df["volume"].iloc[:-5].mean() if len(df) > 5 else df["volume"].mean()
-            )
+            recent_vol = df["volume"].iloc[-5:].mean() if len(df) >= 5 else df["volume"].mean()
+            older_vol = df["volume"].iloc[:-5].mean() if len(df) > 5 else df["volume"].mean()
             vol_trend = recent_vol / older_vol if older_vol > 0 else 1.0
 
             score = 50 + (buy_pressure - 0.5) * 50 + (vol_trend - 1) * 10
@@ -177,50 +204,50 @@ class EnhancedIntelStreams:
         Get on-chain metrics from chaindl
         Returns: whale_activity, exchange_flow, holder_growth
         """
+        if self._chaindl_available is False:
+            return {"score": 50, "source": "chaindl", "unavailable": True}
+
         try:
-            import chaindl
+            if self._chaindl_available is None:
+                import chaindl
 
-            # chaindl sources: cryptoquant, checkonchain, chained, woocharts
-            data = {}
+                self._chaindl_available = True
+        except ImportError:
+            self._chaindl_available = False
+            return {"score": 50, "source": "chaindl", "unavailable": True}
 
-            # Try multiple sources
-            for source in ["cryptoquant", "checkonchain"]:
-                try:
-                    metrics = chaindl.download(
-                        source=source,
-                        tickers=[symbol],
-                        metrics=["balance", "exchange_inflow", "exchange_outflow"],
-                    )
-                    if metrics is not None and not metrics.empty:
-                        data[source] = metrics
-                except:
-                    continue
+        data = {}
 
-            # Simplified scoring based on available data
-            if data:
-                return {
-                    "score": 55,
-                    "whale_activity": "active",
-                    "exchange_flow": "neutral",
-                    "source": "chaindl",
-                    "data_available": True,
-                    "timestamp": datetime.now().isoformat(),
-                }
+        for source in ["cryptoquant", "checkonchain"]:
+            try:
+                metrics = chaindl.download(
+                    source=source,
+                    tickers=[symbol],
+                    metrics=["balance", "exchange_inflow", "exchange_outflow"],
+                )
+                if metrics is not None and not metrics.empty:
+                    data[source] = metrics
+            except:
+                continue
 
+        if data:
             return {
-                "score": 50,
-                "whale_activity": "unknown",
-                "exchange_flow": "unknown",
+                "score": 55,
+                "whale_activity": "active",
+                "exchange_flow": "neutral",
                 "source": "chaindl",
-                "data_available": False,
+                "data_available": True,
                 "timestamp": datetime.now().isoformat(),
             }
-        except ImportError:
-            logger.warning("⚠️ Chaindl not installed")
-            return {"score": 50, "source": "chaindl", "error": "Not installed"}
-        except Exception as e:
-            logger.warning(f"⚠️ Chaindl on-chain error: {e}")
-            return {"score": 50, "source": "chaindl", "error": str(e)}
+
+        return {
+            "score": 50,
+            "whale_activity": "unknown",
+            "exchange_flow": "unknown",
+            "source": "chaindl",
+            "data_available": False,
+            "timestamp": datetime.now().isoformat(),
+        }
 
     # ============================================
     # CRYPTODATAPY - Comprehensive Market Data
@@ -230,37 +257,42 @@ class EnhancedIntelStreams:
         Get comprehensive market data from cryptodatapy
         Returns: price, volume, market_cap, volatility, momentum
         """
-        try:
-            # Try using CCXT directly instead of cryptodatapy (more reliable)
-            import ccxt
+        if symbol in self._binance_missing_symbols:
+            return {"score": 50, "source": "ccxt", "unavailable": True}
 
+        if self._ccxt_available is False:
+            return {"score": 50, "source": "ccxt", "unavailable": True}
+
+        if self._ccxt_available is None:
+            try:
+                global ccxt
+                ccxt = __import__("ccxt")
+                self._ccxt_available = True
+            except ImportError:
+                self._ccxt_available = False
+                return {"score": 50, "source": "ccxt", "unavailable": True}
+
+        try:
             exchange = ccxt.binance()
             ohlcv = exchange.fetch_ohlcv(f"{symbol}/USDT", "1h", limit=100)
 
             if not ohlcv:
                 return {"score": 50, "source": "ccxt"}
 
-            # Convert to DataFrame
             df = pd.DataFrame(
                 ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"]
             )
 
-            # Calculate metrics
             close = df["close"].iloc[-1]
             volume = df["volume"].iloc[-1]
 
-            # Volatility (std of returns)
             returns = df["close"].pct_change()
             volatility = returns.std() * 100
 
-            # Momentum
             momentum = (
-                ((df["close"].iloc[-1] / df["close"].iloc[0]) - 1) * 100
-                if len(df) > 1
-                else 0
+                ((df["close"].iloc[-1] / df["close"].iloc[0]) - 1) * 100 if len(df) > 1 else 0
             )
 
-            # Score based on momentum
             score = 50 + momentum * 2
             score = max(0, min(100, score))
 
@@ -275,10 +307,10 @@ class EnhancedIntelStreams:
                 "source": "ccxt",
                 "timestamp": datetime.now().isoformat(),
             }
-        except ImportError:
-            logger.warning("⚠️ Cryptodatapy/CCXT not available")
-            return {"score": 50, "source": "cryptodatapy", "error": "Not available"}
         except Exception as e:
+            if "does not have market symbol" in str(e):
+                self._binance_missing_symbols.add(symbol)
+                return {"score": 50, "source": "ccxt", "unavailable": True}
             logger.warning(f"⚠️ Market data error: {e}")
             return {"score": 50, "source": "ccxt", "error": str(e)}
 
@@ -417,9 +449,7 @@ class EnhancedIntelStreams:
             # Large transaction proxy (based on volume)
             large_tx_threshold = 1000000  # $1M+
             total_volume = flow.get("total_volume", 0)
-            large_tx_ratio = (
-                min(total_volume / large_tx_threshold, 1) if total_volume > 0 else 0
-            )
+            large_tx_ratio = min(total_volume / large_tx_threshold, 1) if total_volume > 0 else 0
 
             return {
                 "score": round(50 + large_tx_ratio * 50, 2),
@@ -464,9 +494,7 @@ class EnhancedIntelStreams:
                     articles = data.get("articles", [])
 
                     if articles:
-                        tones = [
-                            a.get("tone", 0) for a in articles[:10] if a.get("tone")
-                        ]
+                        tones = [a.get("tone", 0) for a in articles[:10] if a.get("tone")]
                         avg_tone = np.mean(tones) if tones else 0
 
                         score = 50 + (avg_tone * 10)
@@ -526,9 +554,7 @@ class EnhancedIntelStreams:
 
                     if posts and self.vader:
                         titles = [p.get("title", "") for p in posts[:10]]
-                        scores = [
-                            self.analyze_sentiment_vader(t)["compound"] for t in titles
-                        ]
+                        scores = [self.analyze_sentiment_vader(t)["compound"] for t in titles]
                         avg_score = np.mean(scores) if scores else 0
 
                         result_score = 50 + (avg_score * 50)

@@ -58,9 +58,7 @@ class ScoreThresholds:
     GOOD_SETUP: int = 80  # Good buy signal
     STANDARD: int = 70  # Standard opportunity
     MIN_THRESHOLD: int = 55  # Lowered to be more aggressive in volatile markets
-    MARKET_PRIMED_HIGH_COUNT: int = (
-        5  # Number of high-scoring symbols for "primed" mode
-    )
+    MARKET_PRIMED_HIGH_COUNT: int = 5  # Number of high-scoring symbols for "primed" mode
     MARKET_PRIMED_AVG_SCORE: int = 70  # Lowered to be more aggressive
 
 
@@ -214,6 +212,36 @@ class FilterConfig:
 
 
 @dataclass
+class TechnicalIndicatorConfig:
+    """Technical indicator weights and thresholds"""
+
+    RSI_PERIOD: int = 14
+    RSI_OVERSOLD: float = 30.0
+    RSI_OVERBOUGHT: float = 70.0
+    MACD_FAST: int = 12
+    MACD_SLOW: int = 26
+    MACD_SIGNAL: int = 9
+    BB_PERIOD: int = 20
+    BB_STD: float = 2.0
+    MA_SHORT: int = 20
+    MA_MEDIUM: int = 50
+    MA_LONG: int = 200
+    ATR_PERIOD: int = 14
+    STOCH_K: int = 14
+    STOCH_D: int = 3
+
+    WEIGHT_RSI: float = 0.10
+    WEIGHT_MACD: float = 0.15
+    WEIGHT_BOLLINGER: float = 0.10
+    WEIGHT_MA: float = 0.15
+    WEIGHT_OBV: float = 0.10
+    WEIGHT_STOCH: float = 0.10
+    WEIGHT_VWAP: float = 0.10
+    WEIGHT_ATR: float = 0.05
+    WEIGHT_VOLUME: float = 0.15
+
+
+@dataclass
 class IBISTradingConstants:
     """Master configuration class - import this for all thresholds"""
 
@@ -225,12 +253,11 @@ class IBISTradingConstants:
     RISK: RiskConfig = field(default_factory=RiskConfig)
     INTELLIGENCE: IntelligenceConfig = field(default_factory=IntelligenceConfig)
     ALPHA: AlphaRecyclingConfig = field(default_factory=AlphaRecyclingConfig)
-    PRECISION: PrecisionExecutionConfig = field(
-        default_factory=PrecisionExecutionConfig
-    )
+    PRECISION: PrecisionExecutionConfig = field(default_factory=PrecisionExecutionConfig)
     EXECUTION: ExecutionConfig = field(default_factory=ExecutionConfig)
     MULTIPLIERS: MultiplierConfig = field(default_factory=MultiplierConfig)
     FILTER: FilterConfig = field(default_factory=FilterConfig)
+    TECHNICAL: TechnicalIndicatorConfig = field(default_factory=TechnicalIndicatorConfig)
 
     def get_total_friction(self) -> float:
         return self.EXCHANGE.get_total_friction()
@@ -239,9 +266,7 @@ class IBISTradingConstants:
         return self.SCAN.SCAN_INTERVALS.get(regime, self.SCAN.DEFAULT_SCAN_INTERVAL)
 
     def get_max_positions(self, regime: str) -> int:
-        return self.SCAN.MAX_POSITIONS_BY_REGIME.get(
-            regime, self.SCAN.DEFAULT_MAX_POSITIONS
-        )
+        return self.SCAN.MAX_POSITIONS_BY_REGIME.get(regime, self.SCAN.DEFAULT_MAX_POSITIONS)
 
     def get_standard_position_size(self, capital: float) -> float:
         min_size = self.POSITION.MIN_CAPITAL_PER_TRADE
