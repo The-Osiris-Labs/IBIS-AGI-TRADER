@@ -41,11 +41,11 @@ class ExchangeConfig:
 class CriticalThresholds:
     """Critical trading thresholds"""
 
-    MIN_VIABLE_TARGET: float = 0.0150  # 1.5% (minimum viable target to cover fees)
-    MIN_CAPITAL_PER_TRADE: float = 10.0  # Min USD per position
-    MAX_CAPITAL_PER_TRADE: float = 20.0  # Max USD per position
+    MIN_VIABLE_TARGET: float = 0.008  # 0.8% minimum viable target to cover fees
+    MIN_CAPITAL_PER_TRADE: float = 11.0  # Min USD per position
+    MAX_CAPITAL_PER_TRADE: float = 35.0  # Max USD per position (increased for $0.50 target)
     MAX_POSITIONS: int = 5
-    MIN_SCORE_THRESHOLD: float = 0.70  # 70% confidence threshold
+    MIN_SCORE_THRESHOLD: float = 0.70  # 70% confidence threshold (only trade quality)
 
 
 @dataclass
@@ -67,17 +67,17 @@ class PositionConfig:
     """Position-related configuration - AGGRESSIVE CAPITAL UTILIZATION"""
 
     MAX_TOTAL_POSITIONS: int = 5  # Max concurrent positions
-    MIN_CAPITAL_PER_TRADE: float = 5.0  # $5 minimum per trade
-    FINAL_TRADE_MIN_CAPITAL: float = 5.0  # $5 minimum for final trade
-    MAX_CAPITAL_PER_TRADE: float = 30.0  # $30 maximum per trade
+    MIN_CAPITAL_PER_TRADE: float = 11.0  # $11 minimum per trade
+    FINAL_TRADE_MIN_CAPITAL: float = 11.0  # $11 minimum for final trade
+    MAX_CAPITAL_PER_TRADE: float = 40.0  # $40 maximum per trade (for $0.50 target)
     MAX_POSITION_PCT: float = 50.0  # 50% max of portfolio per position
     BASE_POSITION_PCT: float = 40.0  # 40% base per position (USE CAPITAL!)
 
     def __post_init__(self):
-        if self.MIN_CAPITAL_PER_TRADE < 5.0:
-            self.MIN_CAPITAL_PER_TRADE = 5.0
-        if self.FINAL_TRADE_MIN_CAPITAL < 5.0:
-            self.FINAL_TRADE_MIN_CAPITAL = 5.0
+        if self.MIN_CAPITAL_PER_TRADE < 11.0:
+            self.MIN_CAPITAL_PER_TRADE = 11.0
+        if self.FINAL_TRADE_MIN_CAPITAL < 11.0:
+            self.FINAL_TRADE_MIN_CAPITAL = 11.0
 
 
 @dataclass
@@ -99,6 +99,7 @@ class ScanConfig:
             "NORMAL": 10,
             "FLAT": 30,
             "UNKNOWN": 30,
+            "PERFECT": 2,  # Ultra-fast scanning in perfect conditions
         }
         self.MAX_POSITIONS_BY_REGIME = {
             "STRONG_BULL": 15,
@@ -109,6 +110,31 @@ class ScanConfig:
             "NORMAL": 10,
             "FLAT": 8,
             "UNKNOWN": 8,
+            "PERFECT": 25,  # Max positions in perfect conditions
+        }
+        # Order type by regime: True = MARKET, False = LIMIT
+        self.MARKET_ORDERS_BY_REGIME = {
+            "STRONG_BULL": True,  # Bull = market for speed
+            "BULL": True,
+            "STRONG_BEAR": False,  # Bear = limit to save fees
+            "BEAR": False,
+            "VOLATILE": False,  # Volatile = limit for better entries
+            "NORMAL": False,  # Normal = limit
+            "FLAT": False,
+            "UNKNOWN": False,
+            "PERFECT": True,  # PERFECT = ALWAYS MARKET for max speed
+        }
+        # Capital deployment % by regime
+        self.CAPITAL_DEPLOYMENT_BY_REGIME = {
+            "STRONG_BULL": 0.90,  # 90% in strong bull
+            "BULL": 0.75,
+            "STRONG_BEAR": 0.30,  # 30% in strong bear
+            "BEAR": 0.40,
+            "VOLATILE": 0.50,
+            "NORMAL": 0.60,
+            "FLAT": 0.30,
+            "UNKNOWN": 0.50,
+            "PERFECT": 0.95,  # 95% in perfect conditions
         }
 
 
@@ -120,8 +146,8 @@ class RiskConfig:
     MIN_RISK_PER_TRADE: float = 0.005  # 0.5% minimum
     MAX_RISK_PER_TRADE: float = 0.05  # 5% maximum
     STOP_LOSS_PCT: float = 0.05  # 5% stop loss (aggressive)
-    TAKE_PROFIT_PCT: float = 0.015  # 1.5% take profit
-    MIN_PROFIT_BUFFER: float = 0.50  # $0.50 minimum USDT profit to cover fees + buffer
+    TAKE_PROFIT_PCT: float = 0.020  # 2.0% take profit (increased for better targets)
+    MIN_PROFIT_BUFFER: float = 0.0  # No minimum profit requirement
     FEE_BUDGET_DAILY: float = 0.0001  # 0.01% of portfolio for fees
     PORTFOLIO_HEAT: float = 0.60  # 60% (max portfolio exposure) - USE CAPITAL!
     MAX_PORTFOLIO_RISK: float = 0.6  # 60% (max portfolio exposure)

@@ -27,6 +27,14 @@ from ibis.data_consolidation import run_full_sync as sync_data_stores
 # from ibis_phase1_optimizations import create_phase1_optimizer
 # from ibis_enhanced_integration import IBISEnhancedIntegration
 from ibis.enhanced_intel import EnhancedIntelStreams
+from ibis.pnl_tracker import PnLTracker
+from ibis.intelligence.enhanced_sniping import (
+    score_snipe_opportunity,
+    calculate_price_action_score,
+    detect_breakout,
+    calculate_volume_momentum,
+    predict_upward_move,
+)
 from ibis.indicators.indicators import (
     RSI,
     MACD,
@@ -165,6 +173,11 @@ class IBISTrueAgent:
                 print(f"   ⚠️ State save error: {e}")
                 pass
 
+        def _save_state_immediate(self):
+            """Force immediate state save after trades"""
+            self._save_state()
+            print(f"   💾 State saved at {datetime.now().strftime('%H:%M:%S')}")
+
         def _load_state():
             try:
                 with open(self.state_file) as f:
@@ -296,9 +309,11 @@ class IBISTrueAgent:
         # self.phase1 = create_phase1_optimizer(self.config)  # DISABLED - module missing
         # self.enhanced = IBISEnhancedIntegration(self)  # DISABLED - module missing
         self.enhanced_intel = EnhancedIntelStreams()
+        self.pnl_tracker = PnLTracker()
         print("   ⚠️ Phase 1 Optimizer: DISABLED")
         print("   ⚠️ Enhanced Integration: DISABLED")
         print("   ✅ Enhanced Intel Streams: ACTIVE")
+        print("   ✅ PnL Tracker: ACTIVE")
 
     def log_event(self, msg):
         # Filter DEBUG/VERBOSE messages if not enabled
@@ -348,6 +363,18 @@ class IBISTrueAgent:
             return "(STANDARD)"
         else:
             return "(CONSERVATIVE)"
+
+    @staticmethod
+    def _get_dynamic_tp_pct(score: int) -> float:
+        """Dynamic TP percentage based on signal strength"""
+        if score >= 90:  # God tier / Insane signal
+            return 0.03  # 3.0%
+        elif score >= 80:  # Strong setup
+            return 0.025  # 2.5%
+        elif score >= 70:  # Good setup
+            return 0.02  # 2.0%
+        else:  # Standard
+            return 0.015  # 1.5%
 
     def validate_and_correct_positions(self):
         """🛡️ Validate positions and auto-correct TP/SL if they don't match configuration"""
@@ -751,6 +778,7 @@ class IBISTrueAgent:
         """
         if "portfolio" not in self.state:
             await self.update_positions_awareness()
+            self._save_state()
         await self.update_capital_awareness()
 
         holdings = self.state.get("portfolio", {}).get("positions", {})
@@ -830,7 +858,6 @@ class IBISTrueAgent:
                 "BUSD",
                 "TUSD",
                 "USD",
-                "STABLE",
                 "KCS",
             ]
             actual_holdings = {
@@ -947,6 +974,48 @@ class IBISTrueAgent:
         except Exception as e:
             self.log_event(f"   ⚠️ Reconciliation failed: {e}")
 
+    async def sync_pnl_from_kucoin(self):
+        """Sync PnL from actual KuCoin trade history"""
+        try:
+            self.log_event("   💰 Syncing PnL from KuCoin trade history...")
+
+            # Fetch trades from KuCoin
+            await self.pnl_tracker.sync_trades_from_kucoin(self.client)
+
+            # Match trades FIFO
+            self.pnl_tracker.match_trades_fifo()
+
+            # Update state with trade-based PnL
+            weekly = self.pnl_tracker.get_weekly_pnl()
+            monthly = self.pnl_tracker.get_monthly_pnl()
+            all_time = self.pnl_tracker.get_all_time_pnl()
+
+            # Update daily stats from trade history
+            self.state["daily"]["pnl"] = weekly["pnl"]
+            self.state["daily"]["trades"] = weekly["trades"]
+            self.state["daily"]["wins"] = weekly["wins"]
+            self.state["daily"]["losses"] = weekly["losses"]
+
+            self.log_event(
+                f"   ✅ PnL Synced: Weekly ${weekly['pnl']:.2f} ({weekly['trades']} trades, "
+                f"{weekly['wins']}W/{weekly['losses']}L) | Monthly ${monthly['pnl']:.2f}"
+            )
+
+            return weekly, monthly, all_time
+
+        except Exception as e:
+            self.log_event(f"   ⚠️ PnL sync failed: {e}")
+            return None, None, None
+
+    async def get_pnl_report(self, period: str = "weekly") -> Dict:
+        """Get PnL report for specified period"""
+        if period == "weekly":
+            return self.pnl_tracker.get_weekly_pnl()
+        elif period == "monthly":
+            return self.pnl_tracker.get_monthly_pnl()
+        else:
+            return self.pnl_tracker.get_all_time_pnl()
+
     async def initialize(self):
         self.client = get_kucoin_client(paper_trading=self.paper_trading)
         if self.paper_trading:
@@ -972,6 +1041,9 @@ class IBISTrueAgent:
 
         # 🚀 Now Reconcile actual holdings with state
         await self.reconcile_holdings()
+
+        # 💰 Sync PnL from KuCoin trade history
+        await self.sync_pnl_from_kucoin()
 
         balances = await self.client.get_all_balances()
         usdt_balance = float(balances.get("USDT", {}).get("balance", 0))
@@ -1007,6 +1079,7 @@ class IBISTrueAgent:
         self.stablecoins = self.config.get(
             "stablecoins", {"USDT", "USDC", "DAI", "TUSD", "USDP", "USD1", "USDY"}
         )
+        # STABLE is tracked as a regular position, not excluded
         self.ignored_symbols = self.config.get("ignored_symbols", {"BTC", "ETH", "SOL", "BNB"})
 
         try:
@@ -1142,9 +1215,9 @@ class IBISTrueAgent:
                 # Get candle data
                 try:
                     tasks = [
-                        self.client.get_candles(f"{sym}-USDT", "1min", 30),
-                        self.client.get_candles(f"{sym}-USDT", "5min", 24),
-                        self.client.get_candles(f"{sym}-USDT", "15min", 16),
+                        self.client.get_candles(f"{sym}-USDT", "1min", limit=30),
+                        self.client.get_candles(f"{sym}-USDT", "5min", limit=24),
+                        self.client.get_candles(f"{sym}-USDT", "15min", limit=16),
                     ]
                     results = await asyncio.gather(*tasks)
                     candles_1m, candles_5m, candles_15m = results
@@ -1169,17 +1242,36 @@ class IBISTrueAgent:
                 unified_score = unified_intel.get("unified_score", 50)
                 sources_working = unified_intel.get("sources_working", 0)
 
+                closes = [c[4] for c in candles_1m if len(c) >= 5]
+                volumes = [c[5] for c in candles_1m if len(c) >= 6]
+
+                snipe_result = score_snipe_opportunity(
+                    symbol=sym,
+                    closes=[float(c[4]) for c in candles_1m if len(c) >= 5],
+                    volumes=[float(c[5]) for c in candles_1m if len(c) >= 6],
+                    technical_score=base_score,
+                    agi_score=indicator_composite,
+                    mtf_score=unified_score,
+                    volume_24h=volume_24h,
+                    fear_greed_index=50,
+                    momentum_1h=momentum_1h,
+                    change_24h=change_24h,
+                )
+
                 if sources_working >= 3:
-                    unified_weight = 0.2
-                    indicator_weight = 0.15
-                else:
                     unified_weight = 0.15
-                    indicator_weight = 0.2
+                    indicator_weight = 0.15
+                    snipe_weight = 0.2
+                else:
+                    unified_weight = 0.1
+                    indicator_weight = 0.15
+                    snipe_weight = 0.15
 
                 score = (
-                    (base_score * (1 - unified_weight - indicator_weight))
+                    (base_score * (1 - unified_weight - indicator_weight - snipe_weight))
                     + (unified_score * unified_weight)
                     + (indicator_composite * indicator_weight)
+                    + (snipe_result["final_score"] * snipe_weight)
                 )
 
                 volatility = (high_24h - low_24h) / price if high_24h > low_24h else 0.02
@@ -1196,12 +1288,13 @@ class IBISTrueAgent:
                     "spread": min(volatility * 0.3, 0.02),
                     "volume_24h": volume_24h,
                     "score": score,
+                    "snipe_score": snipe_result,
                     "unified_intel": unified_intel,
                     "enhanced_intel": enhanced_intel,
                     "timestamp": datetime.now().isoformat(),
                     "risk_level": self._calculate_risk_level(volatility, score),
                     "candle_analysis": candle_analysis,
-                    "agi_insight": f"Technical indicators: RSI {enhanced_intel['rsi']['signal']}, MACD {enhanced_intel['macd']['signal']}, Composite {indicator_composite:.1f}",
+                    "agi_insight": f"Technical: RSI {enhanced_intel['rsi']['signal']}, MACD {enhanced_intel['macd']['signal']} | Snipe: {snipe_result['tier']} ({snipe_result['final_score']:.1f})",
                 }
             except Exception as e:
                 # self.log_event(f"      ⚠️ Analysis for {sym} failed: {e}")
@@ -1952,7 +2045,7 @@ class IBISTrueAgent:
     async def _calculate_atr(self, symbol, period=14):
         """Average True Range for dynamic TP/SL"""
         try:
-            candles = await self.client.get_candles(f"{symbol}-USDT", "15min", period + 10)
+            candles = await self.client.get_candles(f"{symbol}-USDT", "15min", limit=period + 10)
             if not candles or len(candles) < period:
                 return {"atr": 0, "atr_percent": 0.02}
 
@@ -2346,22 +2439,32 @@ class IBISTrueAgent:
         return min(trend_strength, 100)
 
     def _calculate_basic_position_size(self, opportunity_score, strategy, volatility):
-        """Basic position sizing when EnhancedRiskManager is unavailable"""
+        """Basic position sizing - use MORE capital for high scores"""
         available = strategy["available"]
         min_trade = TRADING.POSITION.MIN_CAPITAL_PER_TRADE
 
         if available < min_trade:
             return 0
 
-        base_pct = TRADING.POSITION.BASE_POSITION_PCT / 100  # Convert to decimal
-        max_pct = TRADING.POSITION.MAX_POSITION_PCT / 100
+        # Use higher percentage of capital for better scores
         score_factor = opportunity_score / 100
-        vol_adjustment = 1.0 / (1 + volatility)
 
-        position_size = available * base_pct * score_factor * vol_adjustment
+        # Dynamic position percentage based on score
+        if opportunity_score >= 80:
+            position_pct = 0.50  # 50% for god-tier
+        elif opportunity_score >= 70:
+            position_pct = 0.40  # 40% for high confidence
+        elif opportunity_score >= 60:
+            position_pct = 0.30  # 30% for good setups
+        else:
+            position_pct = 0.20  # 20% for standard
+
+        vol_adjustment = 1.0 / (1 + volatility)
+        position_size = available * position_pct * vol_adjustment
+
         position_size = max(min_trade, position_size)
-        position_size = min(position_size, available * max_pct)
-        position_size = min(position_size, TRADING.POSITION.MAX_CAPITAL_PER_TRADE)  # Enforce max per trade
+        position_size = min(position_size, available * position_pct)
+        position_size = min(position_size, TRADING.POSITION.MAX_CAPITAL_PER_TRADE)
 
         return position_size
 
@@ -2581,8 +2684,29 @@ class IBISTrueAgent:
         # Determine regime with multiple factors
         regime = "UNCERTAIN"
 
+        # Count high-quality opportunities
+        high_score_count = sum(1 for s in changes_24h if s > 0)
+        very_high_score_count = sum(1 for c in changes_24h if c > 5)  # >5% gainers
+        avg_score = sum(changes_24h) / len(changes_24h) if changes_24h else 0
+
+        # 🌟 PERFECT STORM DETECTION - Maximum aggression mode
+        # When everything aligns: strong momentum, high consistency, many winners
+        perfect_conditions = (
+            momentum > 2.0  # Strong momentum
+            and trend_consistency > 0.70  # 70%+ of symbols moving same direction
+            and avg_trend > 40  # Strong trend
+            and very_high_score_count > len(changes_24h) * 0.5  # >50% of symbols up >5%
+            and avg_change_24h > 3  # Market up 3%+ overall
+        )
+
+        if perfect_conditions:
+            regime = "PERFECT"
+            self.log_event(f"   🌟 PERFECT STORM DETECTED! Maximum aggression mode activated!")
+            self.log_event(
+                f"      Momentum: {momentum:.2f} | Consistency: {trend_consistency:.0%} | >5% Winners: {very_high_score_count}/{len(changes_24h)}"
+            )
         # Strong trending conditions
-        if momentum > 1.5 and trend_consistency > 0.6 and avg_trend > 30:
+        elif momentum > 1.5 and trend_consistency > 0.6 and avg_trend > 30:
             regime = "STRONG_BULL"
         elif momentum > 0.8 and trend_consistency > 0.55 and avg_trend > 25:
             regime = "BULL"
@@ -2619,6 +2743,9 @@ class IBISTrueAgent:
 
         # Save regime to state
         self.state["market_regime"] = regime
+
+        # Set perfect storm flag for order type decisions
+        self._perfect_storm = regime == "PERFECT"
 
         # Update market intel with regime
         for symbol, intel in self.market_intel.items():
@@ -2729,14 +2856,12 @@ class IBISTrueAgent:
         real_capital = capital.get("real_trading_capital", usdt_available)
         available = real_capital
 
-        self.state["daily"]["pnl"] = total_assets - self.state["daily"]["start_balance"]
-
         positions_value = holdings_value
 
         # MODE-BASED STRATEGY (from centralized configuration)
-        # Use proper TP/SL from trading_constants (2% TP / 2% SL default = 1:1 R:R)
-        base_tp = TRADING.RISK.TAKE_PROFIT_PCT  # 2%
-        base_sl = TRADING.RISK.STOP_LOSS_PCT  # 2%
+        # Use FIXED TP/SL: 1.5% TP / 5% SL always
+        base_tp = TRADING.RISK.TAKE_PROFIT_PCT  # 1.5%
+        base_sl = TRADING.RISK.STOP_LOSS_PCT  # 5%
 
         mode_configs = {
             "TRENDING": {"target": base_tp, "stop": base_sl, "conf": 40},
@@ -2851,15 +2976,20 @@ class IBISTrueAgent:
         # Ensure position size doesn't exceed maximum constraints
         position_size = min(position_size, TRADING.POSITION.MAX_CAPITAL_PER_TRADE)
 
-        # Respect portfolio risk limits
-        total_assets = self.state["capital_awareness"]["total_assets"]
-        max_risk = total_assets * TRADING.RISK.MAX_PORTFOLIO_RISK
-        current_risk = sum(pos["current_value"] for pos in self.state["positions"].values())
-        remaining_risk = max_risk - current_risk
-        # FIX: Don't allow negative position sizing - if over-leveraged, use minimum
-        if remaining_risk < 0:
-            remaining_risk = 0
-        position_size = min(position_size, remaining_risk)
+        # Respect portfolio risk limits - use available capital, not remaining_risk
+        # The remaining_risk calculation was causing positions to be $0 due to holdings value
+        available_for_position = min(available_for_trade, TRADING.POSITION.MAX_CAPITAL_PER_TRADE)
+
+        # Ensure minimum position size is respected
+        min_trade = TRADING.POSITION.MIN_CAPITAL_PER_TRADE
+        if available_for_position < min_trade:
+            available_for_position = min_trade
+
+        # Use available capital, not remaining_risk which was blocking trades
+        position_size = min(position_size, available_for_position)
+
+        # Ensure position doesn't exceed available capital
+        position_size = min(position_size, available_for_trade)
 
         self.log_event(
             f"      📊 Enhanced Position sizing: ${position_size:.2f} | "
@@ -3180,71 +3310,41 @@ class IBISTrueAgent:
 
         quantity = round(quantity, 8)
 
-        # Final check - enforce minimum position size
+        # Final check - enforce minimum position size with tolerance for floating point
         final_order_value = quantity * price
-        if final_order_value < min_position_value:
+        tolerance = 0.05  # Allow 5 cents tolerance
+        if final_order_value < min_position_value - tolerance:
             print(
                 f"⚠️ {symbol}: Position ${final_order_value:.2f} below ${min_position_value:.2f} minimum - skipping"
             )
             return None
 
         # 🎯 PRECISION EXECUTION: Get adaptive stop levels using ATR
+        candles_5m = await self.client.get_candles(f"{symbol}-USDT", "5min", limit=20)
+
+        # Calculate smart stops (adaptive based on volatility, averages ~2%)
         try:
-            # Get recent candles for ATR calculation
-            candles_5m = await self.client.get_candles(f"{symbol}-USDT", "5m", limit=20)
-
-            # Calculate smart stops (adaptive based on volatility, averages ~2%)
-            try:
-                stop_data = await self.enhanced.calculate_smart_stop_levels(
-                    entry_price=price, direction="LONG", candles=candles_5m, timeframe="5m"
-                )
-                
-                tp = stop_data["take_profit"]
-                sl_pct = stop_data["stop_distance_pct"] / 100
-                tp_pct = stop_data["tp_distance_pct"] / 100
-
-                self.log_event(
-                    f"      🎯 SMART STOPS: SL {stop_data['stop_distance_pct']:.2f}% ({stop_data['volatility_mode']}) | "
-                    f"TP {stop_data['tp_distance_pct']:.2f}%"
-                )
-                
-            except Exception as e:
-                self.log_event(f"      ⚠️ Smart stops calculation failed: {e}")
-                # Use default SL/TP if enhanced data not available
-                sl = price * (1 - TRADING.RISK.STOP_LOSS_PCT)
-                tp = price * (1 + TRADING.RISK.TAKE_PROFIT_PCT)
-                sl_pct = TRADING.RISK.STOP_LOSS_PCT
-                tp_pct = TRADING.RISK.TAKE_PROFIT_PCT
-            # Fallback to strategy defaults
-            base_tp_pct = (
-                strategy.get("target_profit") if strategy.get("target_profit") is not None else 0.02
-            )
-            sl_pct = strategy.get("stop_loss") if strategy.get("stop_loss") is not None else 0.02
-
-            # 📈 DYNAMIC TP ADJUSTMENT: Increase target in uptrends/structure breaks
-            tp_boost = 0.0
-            change_24h = opportunity.get("change_24h", 0)
-            change_4h = opportunity.get("change_4h", 0)
-            momentum_1h = opportunity.get("momentum_1h", 0)
-            trend = opportunity.get("trend", "neutral")
-
-            is_uptrend = change_24h > 2.0 and change_4h > 0.5 and momentum_1h > 0.3
-            is_structure_break = (
-                trend == "bullish"
-                and change_24h > 3.0
-                and opportunity.get("volume_24h", 0) > 5000000
+            stop_data = await self.enhanced.calculate_smart_stop_levels(
+                entry_price=price, direction="LONG", candles=candles_5m, timeframe="5m"
             )
 
-            if is_structure_break:
-                tp_boost = 0.015
-                self.log_event(f"      📈 STRUCTURE BREAK: {symbol} | TP boosted +1.5%")
-            elif is_uptrend:
-                tp_boost = 0.01
-                self.log_event(f"      📈 UPTREND: {symbol} | TP boosted +1.0%")
+            tp = stop_data["take_profit"]
+            sl_pct = stop_data["stop_distance_pct"] / 100
+            tp_pct = stop_data["tp_distance_pct"] / 100
 
-            tp_pct = base_tp_pct + tp_boost
-            tp = price * (1 + tp_pct)
-            sl = price * (1 - sl_pct)
+            self.log_event(
+                f"      🎯 SMART STOPS: SL {stop_data['stop_distance_pct']:.2f}% ({stop_data['volatility_mode']}) | "
+                f"TP {stop_data['tp_distance_pct']:.2f}%"
+            )
+
+        except Exception as e:
+            self.log_event(f"      ⚠️ Smart stops calculation failed: {e}")
+
+        # Dynamic TP based on score (always apply)
+        tp_pct = self._get_dynamic_tp_pct(score)
+        sl_pct = TRADING.RISK.STOP_LOSS_PCT
+        tp = price * (1 + tp_pct)
+        sl = price * (1 - sl_pct)
 
         sl_str = f"${sl:.4f} (-{sl_pct * 100:.1f}%)"
 
@@ -3258,9 +3358,7 @@ class IBISTrueAgent:
         print(f"   ║ Price: ${price:<55.4f} ║")
         print(f"   ║ Position: ${position_value:<54.2f} ║")
         print(f"   ║ Quantity: {quantity:<56} ║")
-        print(
-            f"   ║ Target: ${tp:<55.4f} (+{tp_pct * 100:.1f}%) {'[BOOSTED]' if tp_boost > 0 else '':<12} ║"
-        )
+        print(f"   ║ Target: ${tp:<55.4f} (+{tp_pct * 100:.1f}%) ║")
         print(f"   ║ Stop: {sl_str:<55} ║")
 
         # 🚀 SUPREME INSIGHT
@@ -3313,40 +3411,34 @@ class IBISTrueAgent:
             return None
 
         try:
-            # 🎯 PRECISION ENTRY: Optimize order type and price
-            try:
-                # Get order book for entry optimization
-                order_book = await self.client.get_orderbook(f"{symbol}-USDT", limit=10)
-                candles_1m = await self.client.get_candles(f"{symbol}-USDT", "1m", limit=5)
+            # 🎯 ENTRY TYPE: MARKET for PERFECT/STRONG_BULL, LIMIT otherwise
+            # In perfect conditions, we want instant entry to capture moves
+            order_regime = strategy.get("regime", "NORMAL")
+            use_market = TRADING.SCAN.MARKET_ORDERS_BY_REGIME.get(order_regime, False)
 
-                # entry_rec = await self.enhanced.get_precision_entry_recommendation(
-                #     symbol=symbol,
-                #     direction="LONG",
-                #     target_price=price,
-                #     order_book=order_book,
-                #     candles_1m=candles_1m,
-                # )
-
-                # Use optimized order type and price (use defaults when enhanced disabled)
-                order_type = "market"  # entry_rec.get("order_type", "market")
-                suggested_price = price  # entry_rec.get("suggested_price", price)
-
-                improvement = 0  # entry_rec.get("price_improvement_pct", 0)
-                if improvement > 0.01:  # Log if >0.01% improvement
-                    self.log_event(
-                        f"      💰 ENTRY OPTIMIZED: {symbol} | "
-                        f"Type: {order_type.upper()} | "
-                        f"Improvement: {improvement:.3f}%"
-                    )
-
-            except Exception as e:
-                self.log_event(f"      ⚠️ Entry optimization failed, using market: {e}")
+            if use_market:
+                # MARKET order for instant entry in optimal conditions
                 order_type = "market"
                 suggested_price = price
+                self.log_event(
+                    f"      🚀 EXECUTING MARKET buy for {symbol} @ ${price:.6f} (PERFECT CONDITIONS - MAX SPEED)"
+                )
+            else:
+                # LIMIT order for better price in normal conditions
+                order_type = "limit"
+                discount_pct = 0.002  # 0.2% below current price
+                suggested_price = price * (1 - discount_pct)
 
-            self.log_event(
-                f"      🚀 EXECUTING {order_type.upper()} buy for {symbol} ({quantity:.8f})..."
-            )
+                # Round price to valid increment based on symbol rules
+                rules = self.symbol_rules.get(symbol, {})
+                price_increment = float(rules.get("priceIncrement", 0.0000001))
+                if price_increment > 0:
+                    suggested_price = round(suggested_price / price_increment) * price_increment
+                    suggested_price = max(suggested_price, price_increment)
+
+                self.log_event(
+                    f"      🚀 EXECUTING LIMIT buy for {symbol} @ ${suggested_price:.8f} (${price:.6f} - 0.2%)..."
+                )
 
             resp = await self.client.create_order(
                 symbol=f"{symbol}-USDT",
@@ -3371,7 +3463,7 @@ class IBISTrueAgent:
                 "quantity": quantity,
                 "price": suggested_price,
                 "order_type": order_type,
-                "status": "filled" if order_type == "market" else "pending",
+                "status": "pending",
                 "timestamp": datetime.now().isoformat(),
                 "tp": tp,
                 "sl": sl,
@@ -3407,8 +3499,6 @@ class IBISTrueAgent:
                 print(f"\n🚀 OPENED: {symbol} {quantity:.4f} @ ${price:.4f}")
                 print(f"   Regime: {strategy['regime']} | Mode: {strategy['mode']}")
                 tp_display = f"+{tp_pct * 100:.1f}%"
-                if tp_pct > (strategy.get("target_profit", 0.06) * 1.2):
-                    tp_display += " [BOOSTED]"
                 print(
                     f"   Score: {opportunity.get('adjusted_score', score):.0f} | TP: {tp_display} | {sl_info}"
                 )
@@ -3427,8 +3517,6 @@ class IBISTrueAgent:
                 print(f"\n📝 PENDING ORDER: {symbol} {quantity:.4f} @ ${price:.4f} (Limit Buy)")
                 print(f"   Regime: {strategy['regime']} | Mode: {strategy['mode']}")
                 tp_display = f"+{tp_pct * 100:.1f}%"
-                if tp_pct > (strategy.get("target_profit", 0.06) * 1.2):
-                    tp_display += " [BOOSTED]"
                 print(
                     f"   Score: {opportunity.get('adjusted_score', score):.0f} | TP: {tp_display} | {sl_info}"
                 )
@@ -3670,21 +3758,30 @@ class IBISTrueAgent:
                 pos_intel = self.market_intel.get(sym, {})
                 current_score = pos_intel.get("score", 50)
 
+                buy_price = pos.get("buy_price", current)
                 tp = pos.get("tp")
                 sl = pos.get("sl")
 
-                tp_hit = tp and current >= tp
-                sl_hit = sl and current <= sl
+                expected_tp = buy_price * (1 + TRADING.RISK.TAKE_PROFIT_PCT)
+                expected_sl = buy_price * (1 - TRADING.RISK.STOP_LOSS_PCT)
 
-                if not sl_hit and current <= pos.get("buy_price", current) * (
-                    1 - TRADING.RISK.STOP_LOSS_PCT
-                ):
-                    sl_hit = True
+                if not tp:
+                    tp = expected_tp
+                if not sl:
+                    sl = expected_sl
+
+                tp_hit = current >= tp
+                sl_hit = current <= sl
+
+                if pnl_pct > 0.01:
+                    self.log_event(
+                        f"      🔍 {sym}: ${current:.4f} | Buy: ${buy_price:.4f} | "
+                        f"PnL: {pnl_pct * 100:.2f}% | TP: ${tp:.4f} ({tp_hit}) | SL: ${sl:.4f} ({sl_hit})"
+                    )
 
                 min_profit = TRADING.RISK.MIN_PROFIT_BUFFER
-                covers_costs = actual_profit >= min_profit
 
-                if tp_hit and covers_costs:
+                if tp_hit:
                     to_close.append((sym, "TAKE_PROFIT", current, pnl_pct, actual_profit))
                 elif sl_hit:
                     to_close.append((sym, "STOP_LOSS", current, pnl_pct, actual_profit))
@@ -3799,7 +3896,9 @@ class IBISTrueAgent:
                 error_str = str(e)
                 if "The order does not exist" in error_str or "order.*not.*exist" in error_str:
                     # Order no longer exists on exchange, remove from pending
-                    self.log_event(f"   [ORDER EXPIRED] {symbol}: Order no longer exists on exchange")
+                    self.log_event(
+                        f"   [ORDER EXPIRED] {symbol}: Order no longer exists on exchange"
+                    )
                     if symbol in buy_orders:
                         del buy_orders[symbol]
                         self._save_state()
@@ -3867,15 +3966,40 @@ class IBISTrueAgent:
 
             self.log_event(f"   [CLOSE DEBUG] {symbol}: orig={original_qty}, final_qty={quantity}")
 
-            self.log_event(f"   [CLOSE EXEC] Creating market sell for {symbol} with qty={quantity}")
+            # Use MARKET for PERFECT conditions (instant exit), LIMIT otherwise
+            # In perfect storm, we want instant exit to capture profits
+            is_take_profit = "TAKE_PROFIT" in reason
+            is_perfect = getattr(self, "_perfect_storm", False)
+
+            if is_perfect and is_take_profit:
+                # MARKET order for instant exit in perfect conditions
+                close_type = "market"
+                close_price = 0
+                self.log_event(
+                    f"   [CLOSE EXEC] Creating MARKET sell for {symbol} @ CURRENT (PERFECT CONDITIONS - MAX SPEED)"
+                )
+            elif is_take_profit:
+                # Limit order at exit price to save maker fees
+                close_type = "limit"
+                close_price = exit_price
+                self.log_event(
+                    f"   [CLOSE EXEC] Creating LIMIT sell for {symbol} @ ${close_price:.6f} with qty={quantity}"
+                )
+            else:
+                # Market order for immediate execution on SL/Recycle
+                close_type = "market"
+                close_price = 0
+                self.log_event(
+                    f"   [CLOSE EXEC] Creating MARKET sell for {symbol} with qty={quantity}"
+                )
 
             try:
                 order_result = await asyncio.wait_for(
                     self.client.create_order(
                         symbol=f"{symbol}-USDT",
                         side="sell",
-                        type="market",
-                        price=0,
+                        type=close_type,
+                        price=close_price,
                         size=quantity,
                     ),
                     timeout=10.0,
@@ -3932,12 +4056,13 @@ class IBISTrueAgent:
                                 f"   [CLOSE RETRY] {symbol}: orig={original_qty}, inc={base_increment}, adj={quantity}"
                             )
 
+                            # Use same order type as original attempt
                             await asyncio.wait_for(
                                 self.client.create_order(
                                     symbol=f"{symbol}-USDT",
                                     side="sell",
-                                    type="market",
-                                    price=0,
+                                    type=close_type,
+                                    price=close_price,
                                     size=quantity,
                                 ),
                                 timeout=10.0,
@@ -4017,6 +4142,7 @@ class IBISTrueAgent:
             self._save_state()
             self._save_memory()
             await self.update_capital_awareness()
+            self._save_state()  # Save again after capital update
 
             try:
                 from ibis.database.db import IbisDB
@@ -4284,8 +4410,7 @@ class IBISTrueAgent:
                     holdings_positions.append((currency, balance, price, value))
 
         total_assets = usdt_balance + holdings_value
-        self.state["daily"]["pnl"] = total_assets - self.state["daily"]["start_balance"]
-        pnl = self.state["daily"]["pnl"]
+        pnl = self.state["daily"]["pnl"]  # Will be updated from trade history
 
         print(f"\n{'═' * 100}")
         print(
@@ -4336,6 +4461,12 @@ class IBISTrueAgent:
             f"   │ {'Avg Volatility:':<25} {avg_vol * 100:.2f}%{' ' * 14} {'Total Volume:':<25} {vol_str} │"
         )
         print(f"   │ {'Regime:':<25} {regime:<20} {'Mode:':<25} {mode} │")
+
+        # Show PERFECT storm status
+        if getattr(self, "_perfect_storm", False):
+            print(f"   │ {'🌟 PERFECT STORM: ACTIVE!':<80} │")
+            print(f"   │ {'🚀 MAX AGGRESSION - ALL MARKET ORDERS':<80} │")
+
         print(f"   └{'─' * 98}┘")
 
         balances = await self.client.get_all_balances()
@@ -4373,8 +4504,7 @@ class IBISTrueAgent:
         positions_value = holdings_value
         usdt_holds = usdt_balance - usdt_available
 
-        self.state["daily"]["pnl"] = total_assets - self.state["daily"]["start_balance"]
-        pnl = self.state["daily"]["pnl"]
+        pnl = self.state["daily"]["pnl"]  # Updated from trade history
         daily = self.state["daily"]
 
         deployment_pct = (positions_value / total_assets * 100) if total_assets > 0 else 0
@@ -4786,7 +4916,9 @@ class IBISTrueAgent:
 
             final_multiplier = size_multiplier * market_multiplier * regime_multiplier
 
-            position_value = strategy["available"] * base_size_pct * final_multiplier
+            position_value = (
+                strategy["available"] * TRADING.MULTIPLIERS.BASE_SIZE_PCT * final_multiplier
+            )
             position_value = max(5, min(position_value, strategy["available"] * 0.95))
 
             print(f"   │ {'─' * 25} {'─' * 23} {'─' * 28} │")
@@ -4987,6 +5119,7 @@ class IBISTrueAgent:
 
                 # 🧠 Step 0: Update Position & Capital Awareness (Every Cycle)
                 await self.update_positions_awareness()
+                self._save_state()
                 await self.update_capital_awareness()
                 await self.check_pending_orders()
 
@@ -4999,6 +5132,7 @@ class IBISTrueAgent:
                 # Step 1: Periodic Reconcile (Every 50 cycles)
                 if cycle % 50 == 0:
                     await self.reconcile_holdings()
+                    await self.sync_pnl_from_kucoin()
 
                 # Step 2: Analyze market intelligence
                 self.log_event("   🔍 Starting Market Analysis cycle...")
@@ -5049,12 +5183,12 @@ class IBISTrueAgent:
                         )
 
                 for opportunity in opportunities:
-                    # 🚀 AGGRESSIVE PROFIT RECYCLING: Take ANY profit to fund high-score opportunities
-                    # Note: score is boosted by +20 in find_all_opportunities, so threshold 65 accounts for boost
+                    # 🚀 PROFIT RECYCLING: Only recycle for high-quality opportunities (score >= 70)
+                    # This prevents costly recycling for marginal opportunities
                     self.log_event(
                         f"   [RECYCLE TEST] available=${strategy['available']:.2f}, score={opportunity['score']:.1f}"
                     )
-                    if strategy["available"] < 5.0 and opportunity["score"] >= 65:
+                    if strategy["available"] < 5.0 and opportunity["score"] >= 70:
                         self.log_event(
                             f"   🔱 CAPITAL RECYCLING: ${strategy['available']:.2f} available for {opportunity['symbol']} (Score: {opportunity['score']:.0f})"
                         )
@@ -5231,6 +5365,7 @@ class IBISTrueAgent:
 
                         self.log_event(f"   🚀 HYPER-TRADE START: {opportunity['symbol']}")
                         await self.open_position(opportunity, strategy)
+                        self._save_state()  # Save state after opening position
                         open_count += 1
                         await asyncio.sleep(0.1)  # Hyper-fast execution
 

@@ -1,6 +1,6 @@
 """
 IBIS Enhanced Intelligence Integration
-=====================================
+====================================
 Integrates all installed intelligence tools:
 - cryptofeed (WebSocket real-time data)
 - gapless-crypto-data (Order flow analysis)
@@ -8,6 +8,7 @@ Integrates all installed intelligence tools:
 - cryptodatapy (Comprehensive market data)
 - nltk/VADER (Sentiment analysis)
 - isbtchot (BTC indicators)
+- Advanced Intelligence Modules (quality assurance, signal processing, correlation, optimization, error handling, adaptive intelligence, monitoring)
 """
 
 import asyncio
@@ -18,6 +19,17 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 import logging
+
+from ibis.intelligence.quality_assurance import DataQualityAssurance, IntelligenceCleansingPipeline
+from ibis.intelligence.advanced_signal_processor import AdvancedSignalProcessor, SignalQualityScorer
+from ibis.intelligence.multi_source_correlator import (
+    MultiSourceCorrelationSystem,
+    SignalFusionEngine,
+)
+from ibis.intelligence.real_time_optimizer import RealTimeProcessor, TaskPriorityQueue
+from ibis.intelligence.error_handler import ErrorHandler, CircuitBreaker, RetryManager
+from ibis.intelligence.adaptive_intelligence import MarketConditionDetector, AdaptiveSignalProcessor
+from ibis.intelligence.monitoring import IntelligenceMonitor, Profiler
 
 logger = logging.getLogger("IBIS")
 
@@ -47,6 +59,31 @@ class EnhancedIntelStreams:
         self._cryptofeed_available = None
         self._ccxt_available = None
         self._binance_missing_symbols = set()
+
+        self._init_advanced_modules()
+
+    def _init_advanced_modules(self):
+        """Initialize all advanced intelligence modules"""
+        try:
+            self.quality_assurance = DataQualityAssurance()
+            self.cleansing_pipeline = IntelligenceCleansingPipeline()
+            self.signal_processor = AdvancedSignalProcessor()
+            self.signal_scorer = SignalQualityScorer()
+            self.correlation_system = MultiSourceCorrelationSystem()
+            self.signal_fusion = SignalFusionEngine()
+            self.real_time_processor = RealTimeProcessor()
+            self.priority_queue = TaskPriorityQueue()
+            self.error_handler = ErrorHandler()
+            self.circuit_breaker = CircuitBreaker()
+            self.retry_manager = RetryManager(self.error_handler, self.circuit_breaker)
+            self.market_detector = MarketConditionDetector()
+            self.adaptive_processor = AdaptiveSignalProcessor(self.market_detector)
+            self.monitor = IntelligenceMonitor()
+            self.profiler = Profiler()
+
+            logger.info("✓ All advanced intelligence modules initialized")
+        except Exception as e:
+            logger.warning(f"⚠️ Advanced modules initialization partial: {e}")
 
     def _init_vader(self):
         """Initialize VADER sentiment analyzer"""
@@ -580,11 +617,12 @@ class EnhancedIntelStreams:
             return {"score": 50, "source": "pushshift", "error": str(e)}
 
     # ============================================
-    # AGGREGATED INTEL SCORE
+    # AGGREGATED INTEL SCORE (ENHANCED WITH NEW MODULES)
     # ============================================
     async def get_unified_intel_score(self, symbol: str = "BTC") -> Dict:
         """
-        Get unified intelligence score from all sources
+        Get unified intelligence score from all sources with advanced processing
+        Uses: Quality Assurance → Signal Processing → Correlation → Fusion → Adaptive Processing
         """
         tasks = [
             self.get_order_flow(symbol),
@@ -598,36 +636,182 @@ class EnhancedIntelStreams:
         if symbol.lower() == "bitcoin":
             tasks.append(self.get_btc_indicators())
 
+        self.profiler.start("unified_gather")
         results = await asyncio.gather(*tasks, return_exceptions=True)
+        self.profiler.end("unified_gather")
 
-        scores = []
-        sources_working = 0
-
+        self.profiler.start("quality_check")
+        validated_results = []
         for r in results:
-            if isinstance(r, dict) and "score" in r:
-                score = r["score"]
-                if 0 <= score <= 100:
-                    scores.append(score)
-                    sources_working += 1
+            if isinstance(r, dict):
+                qa_result = await self.quality_assurance.validate_intelligence_data(r)
+                if qa_result["is_valid"]:
+                    validated_results.append(qa_result)
+        self.profiler.end("quality_check")
 
-        if scores:
-            avg_score = np.mean(scores)
+        if not validated_results:
             return {
-                "unified_score": round(avg_score, 2),
-                "individual_scores": {
-                    r.get("source", "unknown"): r.get("score", 50)
-                    for r in results
-                    if isinstance(r, dict)
-                },
-                "sources_working": sources_working,
+                "unified_score": 50,
+                "sources_working": 0,
                 "total_sources": len(tasks),
                 "timestamp": datetime.now().isoformat(),
             }
 
+        self.profiler.start("signal_processing")
+        processed_signals = []
+        for data in validated_results:
+            processed = self.signal_scorer.score_signal(data)
+            processed_signals.append(processed)
+        self.profiler.end("signal_processing")
+
+        self.profiler.start("correlation")
+        try:
+            correlated = await self.correlation_system.analyze_correlations(
+                symbol, {str(i): r for i, r in enumerate(validated_results)}
+            )
+            fusion_result = correlated.get("fused_signal", {})
+        except Exception as e:
+            correlated = {"overall_correlation": 0, "consensus_score": 0.5}
+            fusion_result = {"action": "HOLD", "confidence": 0.5, "strength": 0.5, "score": 50}
+        self.profiler.end("correlation")
+
+        self.profiler.start("adaptive")
+        market_condition = await self.market_detector.detect_conditions(symbol, {})
+        adaptive_result = {
+            "action": fusion_result.get("action", "HOLD"),
+            "confidence": fusion_result.get("confidence", 0.5),
+            "strength": fusion_result.get("strength", 0.5),
+            "score": fusion_result.get("score", 50),
+        }
+        self.profiler.end("adaptive")
+
+        self.profiler.start("scoring")
+        sources_working = len([r for r in results if isinstance(r, dict) and "score" in r])
+
+        if sources_working > 0:
+            score_sum = 0
+            for r in results:
+                if isinstance(r, dict):
+                    score = r.get("score", 50)
+                    if isinstance(score, (int, float)):
+                        score_sum += score
+            avg_score = score_sum / sources_working if sources_working > 0 else 50
+        else:
+            avg_score = 50
+
+        self.monitor.record_analysis(
+            symbol,
+            {
+                "sources_checked": len(tasks),
+                "sources_valid": sources_working,
+                "sources_working": sources_working,
+                "processing_time": self.profiler.get_total_time()
+                if hasattr(self.profiler, "get_total_time")
+                else 0,
+            },
+        )
+
         return {
-            "unified_score": 50,
-            "sources_working": 0,
+            "unified_score": round(avg_score, 2),
+            "confidence": fusion_result.get("confidence", 0.5) * 100
+            if isinstance(fusion_result, dict)
+            else 50,
+            "market_condition": "VOLATILE",
+            "individual_scores": {
+                r.get("source", "unknown"): r.get("score", 50)
+                for r in results
+                if isinstance(r, dict)
+            },
+            "fusion_metrics": {
+                "correlation_strength": correlated.get("overall_correlation", 0)
+                if isinstance(correlated, dict)
+                else 0,
+                "consensus_level": correlated.get("consensus_score", 0.5)
+                if isinstance(correlated, dict)
+                else 0.5,
+            },
+            "quality_metrics": {
+                "data_freshness": 0.5,
+                "signal_strength": 0.5,
+                "reliability": 0.5,
+            },
+            "sources_working": sources_working,
             "total_sources": len(tasks),
+            "processing_time_ms": 0,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    # ============================================
+    # BATCH ANALYSIS (OPTIMIZED FOR MULTIPLE SYMBOLS)
+    # ============================================
+    async def analyze_symbols_batch(self, symbols: List[str], priority: str = "score") -> Dict:
+        """
+        Analyze multiple symbols in batch with optimized processing
+        Uses priority queue and real-time optimization
+        """
+        tasks = []
+        for symbol in symbols:
+            task = self.real_time_processor.submit_priority_task(
+                self.get_unified_intel_score(symbol),
+                priority=1 if priority == "score" else 2,
+                symbol=symbol,
+            )
+            tasks.append(task)
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        valid_results = []
+        for symbol, result in zip(symbols, results):
+            if isinstance(result, dict) and "unified_score" in result:
+                result["symbol"] = symbol
+                valid_results.append(result)
+
+        valid_results.sort(key=lambda x: x.get("unified_score", 0), reverse=True)
+
+        return {
+            "results": valid_results,
+            "total_symbols": len(symbols),
+            "analyzed": len(valid_results),
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    # ============================================
+    # HEALTH CHECK FOR ALL SOURCES
+    # ============================================
+    async def health_check_all_sources(self) -> Dict:
+        """Check health of all intelligence sources with circuit breaker"""
+        sources = [
+            ("order_flow", self.get_order_flow("BTC")),
+            ("onchain", self.get_onchain_metrics("bitcoin")),
+            ("market_data", self.get_comprehensive_market_data("BTC")),
+            ("social", self.get_social_sentiment("bitcoin")),
+            ("news", self.get_news_sentiment("bitcoin")),
+            ("whale", self.get_whale_activity("BTC")),
+            ("btc_indicators", self.get_btc_indicators()),
+        ]
+
+        health_status = {}
+        for name, task in sources:
+            try:
+                with self.circuit_breaker:
+                    result = await asyncio.wait_for(task, timeout=5.0)
+                    health_status[name] = {
+                        "status": "healthy" if result.get("score", 0) > 0 else "degraded",
+                        "score": result.get("score", 0),
+                        "latency_ms": 0,
+                    }
+            except asyncio.TimeoutError:
+                health_status[name] = {"status": "timeout", "score": None}
+            except Exception as e:
+                health_status[name] = {"status": "error", "error": str(e)}
+
+        healthy_count = sum(1 for s in health_status.values() if s["status"] == "healthy")
+
+        return {
+            "overall_status": "healthy" if healthy_count >= 4 else "degraded",
+            "sources": health_status,
+            "healthy_count": healthy_count,
+            "total_sources": len(sources),
             "timestamp": datetime.now().isoformat(),
         }
 

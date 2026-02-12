@@ -134,12 +134,10 @@ class ExecutionEngine:
         # We need to implement a clean fetch_ohlcv wrapper in the engine
         # leveraging the existing client or direct API calls.
 
-    async def fetch_market_data(
-        self, symbol: str, intelligence_batch: Dict = None
-    ) -> Dict:
+    async def fetch_market_data(self, symbol: str, intelligence_batch: Dict = None) -> Dict:
         """Fetch all data needed for strategy analysis for a symbol."""
         # 1. Get 15m Candles
-        ohlcv = await self.client.get_candles(symbol, "15min")
+        ohlcv = await self.client.get_candles(symbol, "15min", limit=100)
         closes = [c.close for c in ohlcv] if ohlcv else []
 
         # 2. Get Ticker
@@ -204,18 +202,14 @@ class ExecutionEngine:
 
                 quantity = size_usd / entry_price
 
-                logger.info(
-                    f"   📊 Bought: {quantity:.8f} {symbol} @ ${entry_price:.6f}"
-                )
+                logger.info(f"   📊 Bought: {quantity:.8f} {symbol} @ ${entry_price:.6f}")
 
                 # Calculate +3.0% limit sell price
                 take_profit_price = entry_price * (1 + TRADING.RISK.TAKE_PROFIT_PCT)
                 expected_profit = (take_profit_price - entry_price) * quantity
                 entry_fee = size_usd * TRADING.PROFIT.ENTRY_FEE_PCT
                 total_fees = entry_fee + (
-                    expected_profit
-                    * TRADING.PROFIT.EXIT_FEE_PCT
-                    / TRADING.PROFIT.TAKE_PROFIT_PCT
+                    expected_profit * TRADING.PROFIT.EXIT_FEE_PCT / TRADING.PROFIT.TAKE_PROFIT_PCT
                 )
                 net_profit = expected_profit - total_fees
 
@@ -286,9 +280,7 @@ class ExecutionEngine:
             intel = await market_intelligence.get_combined_intelligence([symbol])
             agi_score = market_intelligence.calculate_intelligence_score(symbol, intel)
             insights = await market_intelligence.generate_insights(intel)
-            insight_str = (
-                insights.get(symbol, ["--"])[0] if insights.get(symbol) else "--"
-            )
+            insight_str = insights.get(symbol, ["--"])[0] if insights.get(symbol) else "--"
 
             if abs(current_price - pos.get("current_price", 0)) > (
                 current_price * 0.001
@@ -309,9 +301,7 @@ class ExecutionEngine:
             )
 
             if should_exit:
-                await self._execute_safe_sell(
-                    symbol, pos["quantity"], current_price, reason
-                )
+                await self._execute_safe_sell(symbol, pos["quantity"], current_price, reason)
 
     async def _execute_safe_sell(
         self, symbol: str, quantity: float, current_price: float, reason: str
@@ -326,9 +316,7 @@ class ExecutionEngine:
                     break
 
             pnl = (current_price - entry_price) * quantity
-            pnl_pct = (
-                ((current_price / entry_price - 1) * 100) if entry_price > 0 else 0
-            )
+            pnl_pct = ((current_price / entry_price - 1) * 100) if entry_price > 0 else 0
 
             logger.info(
                 f"🛑 SELLING: {symbol} | Qty: {quantity:.8f} | PnL: ${pnl:+.2f} ({pnl_pct:+.2f}%)"
@@ -352,14 +340,10 @@ class ExecutionEngine:
             if "increment invalid" in str(e):
                 logger.warning(f"   🔧 Attempting quantity fix...")
                 try:
-                    min_size = (
-                        float(rules.get("baseMinSize", 0.001)) if rules else 0.001
-                    )
+                    min_size = float(rules.get("baseMinSize", 0.001)) if rules else 0.001
                     fixed_qty = round(min_size / 0.00000001) * 0.00000001
                     logger.info(f"   🔧 Retry with fixed qty: {fixed_qty}")
-                    order = await self.client.create_market_order(
-                        symbol, "sell", fixed_qty
-                    )
+                    order = await self.client.create_market_order(symbol, "sell", fixed_qty)
                     self.db.close_position(symbol, current_price, reason)
                     logger.info(f"✅ SELL SUCCESS after fix: {symbol}")
                 except Exception as e2:
@@ -400,9 +384,7 @@ class ExecutionEngine:
 
             logger.info(f"✅ LIMIT SET: {symbol} @ ${limit_price:.6f}")
             logger.info(f"   📊 Order: {order.order_id}")
-            logger.info(
-                f"   💰 Gross profit: ${(limit_price - entry_price) * sell_qty:.4f}"
-            )
+            logger.info(f"   💰 Gross profit: ${(limit_price - entry_price) * sell_qty:.4f}")
 
             return order
 
@@ -443,14 +425,10 @@ class ExecutionEngine:
                     candidates = await self.funnel.rank(limit=30)
                     top_symbols = [c.symbol for c in candidates[:5]]
 
-                    intel_batch = await market_intelligence.get_combined_intelligence(
-                        top_symbols
-                    )
+                    intel_batch = await market_intelligence.get_combined_intelligence(top_symbols)
 
                     for symbol in top_symbols:
-                        data = await self.fetch_market_data(
-                            symbol, intelligence_batch=intel_batch
-                        )
+                        data = await self.fetch_market_data(symbol, intelligence_batch=intel_batch)
                         signal = self.strategy.analyze(data)
 
                         if signal["signal"] == "BUY":
@@ -458,9 +436,7 @@ class ExecutionEngine:
 
                         await asyncio.sleep(0.5)
                 else:
-                    logger.info(
-                        f"   🛑 Insufficient capital (${usdt:.2f}) - Rotating only"
-                    )
+                    logger.info(f"   🛑 Insufficient capital (${usdt:.2f}) - Rotating only")
 
                 # 5. Meta-Reflection
                 positions = self.db.get_open_positions()

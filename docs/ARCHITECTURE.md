@@ -59,14 +59,45 @@ IBIS calculates 8 indicators for every opportunity:
 
 Each opportunity gets scored 0-100 based on:
 
-- Technical indicators (60%)
-- Unified intelligence (20%)
-- Volume & liquidity (15%)
-- Market regime fit (5%)
+| Component | Weight | Description |
+|-----------|--------|-------------|
+| Technical Score | ~50% | RSI, MACD, Bollinger Bands, etc. |
+| Unified Intel | 10-15% | Sentiment, on-chain, news, social |
+| Snipe Score | 15-20% | Breakout detection, volume momentum |
+| Price Action | 10-15% | Recent momentum, volatility quality |
 
-Score thresholds:
-- **≥ 70**: Trade opportunity
-- **< 70**: Wait for better conditions
+**Enhanced Snipe Scoring** - New module that detects:
+- Breakout patterns with volume confirmation
+- Volume momentum (increasing/decreasing)
+- Accumulation patterns (up closes on high volume)
+- Upward move probability predictions
+
+### PERFECT STORM Mode
+
+Rare optimal conditions trigger maximum aggression:
+
+**Activation criteria:**
+- Momentum > 2%
+- Consistency > 70%
+- >50% of tracked symbols up >5%
+
+**Behavior:**
+- MARKET orders only (speed over fees)
+- 2-second scan intervals
+- 95% capital deployment
+- Up to 25 positions
+
+### Score Thresholds
+
+| Tier | Score | Position Size | Take Profit |
+|------|-------|---------------|-------------|
+| GOD_TIER | 90-100 | 100% | 3.0% |
+| HIGH_CONFIDENCE | 80-89 | 80% | 2.5% |
+| STRONG_SETUP | 70-79 | 60% | 2.0% |
+| STANDARD | 60-69 | 40% | 1.5% |
+| WEAK | Below 70 | Skipped | - |
+
+Only trades ≥ 70 score execute.
 
 ---
 
@@ -88,31 +119,39 @@ IBIS runs in an infinite loop, each cycle following the same pattern:
 
 ### Market Regimes
 
-IBIS adapts its behavior based on 8 market regimes:
+IBIS adapts its behavior based on detected market conditions:
 
 | Regime | Characteristics | IBIS Behavior |
 |--------|----------------|---------------|
-| STRONG_BULL | Raging bull market | Aggressive buying |
-| BULL | Mild uptrend | Standard buys |
-| NORMAL | Average conditions | Cautious approach |
-| VOLATILE | Quick moves, high uncertainty | Smaller positions |
-| FLAT | No direction | Wait for clarity |
-| BEAR | Downtrend | Defensive |
-| STRONG_BEAR | Crash | Stay out |
-| UNKNOWN | Unclear | Extra cautious |
+| STRONG_BULL | Raging optimism | Aggressive, larger positions |
+| BULLISH | Mild uptrend | Standard buys |
+| VOLATILE | Quick moves, high uncertainty | Smaller positions, tighter spreads |
+| NEUTRAL | Average conditions | Cautious approach |
+| BEARISH | Downtrend | Defensive, higher threshold |
+| CRASH | Sharp decline | Stay out, maximum protection |
+
+Regime is detected using:
+- 24h market momentum
+- Volatility levels
+- Cross-exchange correlation
+- Volume patterns
 
 ### Strategy Selection
 
-IBIS has 8 built-in strategies:
+IBIS selects strategy based on regime and market conditions:
 
-- **HUNT** - Look for opportunities
-- **HUNT_QUICK** - Fast-moving opportunities
-- **ACCUMULATE** - Buy dips
-- **REST** - Wait out bad conditions
-- **DEFEND** - Protect capital
-- **PRESERVE** - Maximum caution
-- **OBSERVING** - Watch only, no trades
-- **OPPORTUNISTIC** - Take what's given
+| Strategy | When Used | Behavior |
+|----------|-----------|----------|
+| HUNT | Normal conditions | Standard opportunity scanning |
+| RECYCLE | Position management | Reallocate from losers to winners |
+| PERFECT_STORM | Optimal conditions | Maximum aggression, 95% capital |
+| OBSERVING | Circuit breaker | No new trades |
+| DEFEND | Bear market | Reduced exposure |
+
+Each trade gets:
+- Dynamic take-profit (1.5% - 3.0% based on score)
+- 1.2% stop-loss
+- Position size based on score tier
 
 ---
 
@@ -122,28 +161,41 @@ This layer answers: "How do I actually trade?"
 
 ### Order Types
 
-IBIS uses two order types:
+IBIS uses order types strategically to optimize fees:
 
-1. **Limit Orders** - Specify price, waits for market to reach it
-2. **Market Orders** - Execute immediately at best available price
+| Scenario | Order Type | Why |
+|----------|------------|-----|
+| Take Profit | LIMIT (maker) | Saves ~60% fees (0.02% vs 0.1%) |
+| Stop Loss | MARKET | Speed matters, accept taker fees |
+| PERFECT STORM entry | MARKET | Speed over fees in optimal conditions |
+| Normal entry | LIMIT @ 0.2% discount | Better price + maker fees |
+
+### Fee Optimization
+
+IBIS optimizes trading costs:
+- **Take Profit closes**: LIMIT orders use maker fees (~0.02%)
+- **Stop Loss closes**: MARKET orders for immediate execution
+- **Typical savings**: 60-80% on fees per winning trade
 
 ### Position Management
 
 For every position, IBIS calculates:
 
-- **Entry size** - How much to buy
-- **Take Profit (TP)** - Exit target (typically +1.5%)
-- **Stop Loss (SL)** - Exit cutoff (typically -5%)
-- **Trailing Stop** - Locks in profits (optional)
+- **Entry size** - Based on score tier and available capital
+- **Take Profit (TP)** - Dynamic 1.5% - 3.0% based on score
+- **Stop Loss (SL)** - 1.2% fixed
+- **Recycle Trigger** - Exit weak positions, redeploy to winners
 
 ### Risk Limits
 
 IBIS enforces these hard limits:
 
-- Max 5 concurrent positions
-- Max $30 per trade
-- Min $5 per trade
-- Max portfolio exposure: 60%
+| Limit | Value | Purpose |
+|-------|-------|---------|
+| Max Positions | 10-25 | Depends on regime |
+| Max Per Trade | 50% of available | Concentration limit |
+| Stop Loss | 1.2% | Max loss per trade |
+| Min Score | 70 | Quality filter |
 
 ---
 

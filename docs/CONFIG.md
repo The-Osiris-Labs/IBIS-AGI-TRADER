@@ -82,9 +82,9 @@ Critical trading thresholds:
 @dataclass
 class CriticalThresholds:
     MIN_VIABLE_TARGET: float = 0.0150    # 1.5% minimum to cover fees
-    MIN_CAPITAL_PER_TRADE: float = 10.0  # $10 minimum per trade
-    MAX_CAPITAL_PER_TRADE: float = 20.0  # $20 maximum per trade
-    MAX_POSITIONS: int = 5                # Max concurrent positions
+    MIN_CAPITAL_PER_TRADE: float = 11.0  # $11 minimum per trade (+tolerance)
+    MAX_CAPITAL_PER_TRADE: float = 50.0  # $50 maximum per trade
+    MAX_POSITIONS: int = 10              # Max concurrent positions
     MIN_SCORE_THRESHOLD: float = 0.70    # 70% confidence threshold
 ```
 
@@ -95,12 +95,11 @@ Opportunity grading thresholds:
 ```python
 @dataclass
 class ScoreThresholds:
-    GOD_TIER: int = 95          # Exceptional (95-100)
-    HIGH_CONFIDENCE: int = 90   # High confidence (90-94)
-    STRONG_SETUP: int = 85     # Strong buy (85-89)
-    GOOD_SETUP: int = 80       # Good buy (80-84)
-    STANDARD: int = 70         # Standard (70-79)
-    MIN_THRESHOLD: int = 55    # Minimum to consider (55-69)
+    GOD_TIER: int = 90          # Exceptional (90-100)
+    HIGH_CONFIDENCE: int = 80   # High confidence (80-89)
+    STRONG_SETUP: int = 70      # Strong buy (70-79)
+    STANDARD: int = 60          # Standard (60-69)
+    MIN_THRESHOLD: int = 70     # Minimum to trade (70+)
 ```
 
 ### PositionConfig
@@ -110,10 +109,10 @@ Position sizing:
 ```python
 @dataclass
 class PositionConfig:
-    MAX_TOTAL_POSITIONS: int = 5           # Max concurrent positions
-    MIN_CAPITAL_PER_TRADE: float = 5.0     # $5 minimum
-    FINAL_TRADE_MIN_CAPITAL: float = 5.0   # $5 minimum for final trade
-    MAX_CAPITAL_PER_TRADE: float = 30.0    # $30 maximum
+    MAX_TOTAL_POSITIONS: int = 10          # Max concurrent positions
+    MIN_CAPITAL_PER_TRADE: float = 11.0    # $11 minimum (+tolerance)
+    FINAL_TRADE_MIN_CAPITAL: float = 11.0  # $11 minimum for final trade
+    MAX_CAPITAL_PER_TRADE: float = 50.0    # $50 maximum
     MAX_POSITION_PCT: float = 50.0         # 50% max of portfolio
     BASE_POSITION_PCT: float = 40.0        # 40% base position size
 ```
@@ -141,8 +140,11 @@ class RiskConfig:
     BASE_RISK_PER_TRADE: float = 0.02   # 2% base risk per trade
     MIN_RISK_PER_TRADE: float = 0.005   # 0.5% minimum risk
     MAX_RISK_PER_TRADE: float = 0.05    # 5% maximum risk
-    STOP_LOSS_PCT: float = 0.05         # 5% stop loss
-    TAKE_PROFIT_PCT: float = 0.015      # 1.5% take profit
+    STOP_LOSS_PCT: float = 0.012        # 1.2% stop loss
+    # Dynamic take-profit based on score:
+    TAKE_PROFIT_BASE: float = 0.020     # 2.0% base
+    TAKE_PROFIT_GOD_TIER: float = 0.030  # 3.0% for score >= 90
+    TAKE_PROFIT_HIGH: float = 0.025      # 2.5% for score >= 80
     MIN_PROFIT_BUFFER: float = 0.50     # $0.50 minimum profit
     FEE_BUDGET_DAILY: float = 0.0001    # 0.01% for fees
     PORTFOLIO_HEAT: float = 0.60        # 60% max portfolio exposure
@@ -211,17 +213,16 @@ Position sizing multipliers:
 ```python
 @dataclass
 class MultiplierConfig:
-    GOD_TIER_MULTIPLIER: float = 4.0        # Score >= 95
-    HIGH_CONFIDENCE_MULTIPLIER: float = 3.0 # Score >= 90
-    STRONG_SETUP_MULTIPLIER: float = 2.0   # Score >= 85
-    GOOD_SETUP_MULTIPLIER: float = 1.5      # Score >= 80
-    STANDARD_MULTIPLIER: float = 1.0        # Score < 80
+    GOD_TIER_MULTIPLIER: float = 4.0        # Score >= 90
+    HIGH_CONFIDENCE_MULTIPLIER: float = 3.0 # Score >= 80
+    STRONG_SETUP_MULTIPLIER: float = 2.0   # Score >= 70
+    STANDARD_MULTIPLIER: float = 1.0        # Score < 70
 
     REGIME_TRENDING_MULTIPLIER: float = 1.25  # Bull market
-    REGIME_FLAT_MULTIPLIER: float = 0.75      # Flat market
+    REGIME_VOLATILE_MULTIPLIER: float = 0.75  # Volatile market
     REGIME_DEFAULT_MULTIPLIER: float = 1.0     # Normal
 
-    MARKET_PRIMED_MULTIPLIER: float = 1.5   # When market primed
+    PERFECT_STORM_MULTIPLIER: float = 2.0   # Perfect storm mode
     BASE_SIZE_PCT: float = 0.25            # Base size percentage
 ```
 
@@ -303,9 +304,9 @@ TRADING.POSITION.MAX_CAPITAL_PER_TRADE   # 30.0
 TRADING.POSITION.MAX_TOTAL_POSITIONS     # 5
 
 # Score thresholds
-TRADING.SCORE.GOD_TIER          # 95
+TRADING.SCORE.GOD_TIER          # 90
 TRADING.SCORE.STANDARD           # 70
-TRADING.SCORE.MIN_THRESHOLD      # 55
+TRADING.SCORE.MIN_THRESHOLD      # 70
 
 # Technical weights
 TRADING.TECHNICAL.WEIGHT_RSI    # 0.10
