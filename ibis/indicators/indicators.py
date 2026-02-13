@@ -93,17 +93,13 @@ class MovingAverage:
             if i < period - 1:
                 result.append(float("nan"))
             else:
-                weighted_sum = sum(
-                    prices[i - period + j + 1] * (period - j) for j in range(period)
-                )
+                weighted_sum = sum(prices[i - period + j + 1] * (period - j) for j in range(period))
                 result.append(weighted_sum / denominator)
 
         return result
 
     @staticmethod
-    def cross_signal(
-        short_ma: List[float], long_ma: List[float]
-    ) -> Tuple[List[str], List[float]]:
+    def cross_signal(short_ma: List[float], long_ma: List[float]) -> Tuple[List[str], List[float]]:
         signals = []
         strengths = []
 
@@ -276,14 +272,12 @@ class BollingerBands:
             return "OVERSOLD", min((lower - current) / lower, 1.0)
         elif current > bb_data["middle"][-1]:
             return "BULLISH", min(
-                (current - bb_data["middle"][-1])
-                / (upper - bb_data["middle"][-1] + 0.001),
+                (current - bb_data["middle"][-1]) / (upper - bb_data["middle"][-1] + 0.001),
                 1.0,
             )
         else:
             return "BEARISH", min(
-                (bb_data["middle"][-1] - current)
-                / (bb_data["middle"][-1] - lower + 0.001),
+                (bb_data["middle"][-1] - current) / (bb_data["middle"][-1] - lower + 0.001),
                 1.0,
             )
 
@@ -443,13 +437,9 @@ class OBV:
 
         recent = obv_values[-10:]
         if recent[-1] > recent[0]:
-            return "BULLISH", min(
-                (recent[-1] - recent[0]) / max(recent[0], 1) * 10, 1.0
-            )
+            return "BULLISH", min((recent[-1] - recent[0]) / max(recent[0], 1) * 10, 1.0)
         elif recent[-1] < recent[0]:
-            return "BEARISH", min(
-                (recent[0] - recent[-1]) / max(recent[0], 1) * 10, 1.0
-            )
+            return "BEARISH", min((recent[0] - recent[-1]) / max(recent[0], 1) * 10, 1.0)
         return "NEUTRAL", 0.0
 
 
@@ -627,9 +617,7 @@ class SupportResistance:
         resistances = levels.get("resistance", [])
 
         nearest_support = max([s for s in supports if s < price] or [price * 0.95])
-        nearest_resistance = min(
-            [r for r in resistances if r > price] or [price * 1.05]
-        )
+        nearest_resistance = min([r for r in resistances if r > price] or [price * 1.05])
 
         return nearest_support, nearest_resistance
 
@@ -653,8 +641,8 @@ class IndicatorEngine:
         }
 
     async def calculate_all(self, candles: List[OHLCV]) -> MultiIndicatorResult:
-        if len(candles) < 200:
-            raise ValueError(f"Need at least 200 candles, got {len(candles)}")
+        if len(candles) < 100:
+            raise ValueError(f"Need at least 100 candles, got {len(candles)}")
 
         closes = [c.close for c in candles]
         highs = [c.high for c in candles]
@@ -693,9 +681,7 @@ class IndicatorEngine:
         rsi_values = RSI.calculate(closes, 14)
         rsi_signal, rsi_strength = RSI.signal(rsi_values)
         self.indicators["rsi"] = rsi_values[-1]
-        result.indicators["rsi"] = IndicatorResult(
-            "RSI", rsi_values[-1], rsi_signal, rsi_strength
-        )
+        result.indicators["rsi"] = IndicatorResult("RSI", rsi_values[-1], rsi_signal, rsi_strength)
 
         macd_data = MACD.calculate(closes, 12, 26, 9)
         macd_signal, macd_strength = MACD.signal(macd_data)
@@ -711,9 +697,7 @@ class IndicatorEngine:
         self.indicators["bollinger_upper"] = bb_data["upper"][-1]
         self.indicators["bollinger_middle"] = bb_data["middle"][-1]
         self.indicators["bollinger_lower"] = bb_data["lower"][-1]
-        result.indicators["bollinger"] = IndicatorResult(
-            "BB", closes[-1], bb_signal, bb_strength
-        )
+        result.indicators["bollinger"] = IndicatorResult("BB", closes[-1], bb_signal, bb_strength)
 
         atr_values = ATR.calculate(candles, 14)
         atr_signal, atr_strength = ATR.volatility(atr_values, closes[-1])
@@ -743,9 +727,7 @@ class IndicatorEngine:
         obv_values = OBV.calculate(candles)
         obv_signal, obv_strength = OBV.trend(obv_values)
         self.indicators["obv"] = obv_values[-1]
-        result.indicators["obv"] = IndicatorResult(
-            "OBV", obv_values[-1], obv_signal, obv_strength
-        )
+        result.indicators["obv"] = IndicatorResult("OBV", obv_values[-1], obv_signal, obv_strength)
 
         ichimoku_data = Ichimoku.calculate(candles)
         ichimoku_signal, ichimoku_strength = Ichimoku.signal(ichimoku_data, closes[-1])
@@ -756,15 +738,11 @@ class IndicatorEngine:
 
         fib_levels = Fibonacci.levels(max(highs[-50:]), min(lows[-50:]))
         current_fib = Fibonacci.retrace(closes[-1], max(highs[-50:]), min(lows[-50:]))
-        result.indicators["fibonacci"] = IndicatorResult(
-            "FIBONACCI", 0, current_fib, 0.5
-        )
+        result.indicators["fibonacci"] = IndicatorResult("FIBONACCI", 0, current_fib, 0.5)
 
         sr_levels = SupportResistance.find_levels(closes[-200:], 5, 0.02)
         sr_support, sr_resistance = SupportResistance.nearest(closes[-1], sr_levels)
-        result.indicators["support"] = IndicatorResult(
-            "SUPPORT", sr_support, "SUPPORT", 0.5
-        )
+        result.indicators["support"] = IndicatorResult("SUPPORT", sr_support, "SUPPORT", 0.5)
         result.indicators["resistance"] = IndicatorResult(
             "RESISTANCE", sr_resistance, "RESISTANCE", 0.5
         )

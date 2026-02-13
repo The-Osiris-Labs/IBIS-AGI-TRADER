@@ -38,9 +38,7 @@ class FreeIntelligence:
 
     async def get_session(self):
         if self.session is None:
-            self.session = aiohttp.ClientSession(
-                headers={"User-Agent": "IBIS-Trading-Bot/1.0"}
-            )
+            self.session = aiohttp.ClientSession(headers={"User-Agent": "IBIS-Trading-Bot/1.0"})
         return self.session
 
     async def close(self):
@@ -131,9 +129,7 @@ class FreeIntelligence:
                 if data:
                     fng_data = data.get("data", [{}])[0]
                     value = int(fng_data.get("value", 50))
-                    value_classification = fng_data.get(
-                        "value_classification", "Neutral"
-                    )
+                    value_classification = fng_data.get("value_classification", "Neutral")
 
                     result = {
                         "value": value,
@@ -178,118 +174,17 @@ class FreeIntelligence:
 
     async def get_reddit_sentiment(self, symbol: str, subreddits: list = None) -> Dict:
         """
-        Get Reddit sentiment from Reddit API
-        Uses pushshift.io as backup for when Reddit API fails
+        Reddit sentiment is no longer available (API changes)
+        Returns neutral sentiment as fallback
         """
-        import logging
-
-        logger = logging.getLogger("IBIS")
-
-        cache_key = f"reddit_{symbol}"
-        cache = self._get_cache(cache_key)
-        if cache:
-            return cache
-
-        subreddits = subreddits or ["CryptoCurrency", "Bitcoin", "altcoin"]
-        total_sentiment = 0
-        total_posts = 0
-        sources = []
-
-        # Try pushshift.io API (no rate limits, no auth required)
-        try:
-            for subreddit in subreddits[:2]:  # Limit to 2 subreddits
-                url = f"https://api.pushshift.io/reddit/search/submission/"
-                params = {
-                    "subreddit": subreddit,
-                    "q": symbol,
-                    "sort": "desc",
-                    "sort_type": "created_utc",
-                    "size": 10,
-                }
-                data = await self._request_json(url, params=params, timeout=15)
-                if data:
-                    posts = data.get("data", [])
-                    if posts:
-                        post_sentiments = []
-                        for post in posts[:5]:
-                            title = post.get("title", "")
-                            sentiment = self._analyze_text_sentiment(title)
-                            post_sentiments.append(sentiment)
-
-                        if post_sentiments:
-                            avg_sentiment = sum(post_sentiments) / len(post_sentiments)
-                            total_sentiment += avg_sentiment
-                            total_posts += len(post_sentiments)
-                            sources.append(
-                                {
-                                    "subreddit": subreddit,
-                                    "posts": len(post_sentiments),
-                                    "avg_sentiment": avg_sentiment,
-                                }
-                            )
-                            logger.debug(
-                                f"Reddit {subreddit}: {len(post_sentiments)} posts, avg sentiment: {avg_sentiment:.1f}"
-                            )
-        except Exception as e:
-            logger.debug(f"Pushshift API failed: {e}")
-
-        # Fallback: try Reddit API with proper headers
-        if total_posts == 0:
-            try:
-                session = await self.get_session()
-                for subreddit in subreddits[:2]:
-                    url = f"https://www.reddit.com/r/{subreddit}/hot.json"
-                    params = {"limit": 10}
-                    headers = {"User-Agent": "IBIS-Trading-Bot/1.0"}
-
-                    async with session.get(
-                        url,
-                        params=params,
-                        headers=headers,
-                        timeout=aiohttp.ClientTimeout(total=10),
-                    ) as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            posts = data.get("data", {}).get("children", [])
-                            post_sentiments = []
-                            for post in posts[:5]:
-                                title = post.get("data", {}).get("title", "")
-                                sentiment = self._analyze_text_sentiment(title)
-                                post_sentiments.append(sentiment)
-
-                            if post_sentiments:
-                                avg_sentiment = sum(post_sentiments) / len(
-                                    post_sentiments
-                                )
-                                total_sentiment += avg_sentiment
-                                total_posts += len(post_sentiments)
-                                sources.append(
-                                    {
-                                        "subreddit": subreddit,
-                                        "posts": len(post_sentiments),
-                                        "avg_sentiment": avg_sentiment,
-                                    }
-                                )
-            except Exception as e:
-                logger.debug(f"Reddit API fallback failed: {e}")
-
-        if total_posts > 0:
-            final_sentiment = total_sentiment / len(sources) if sources else 50
-            confidence = min(len(sources) * 30, 100)
-        else:
-            final_sentiment = 50
-            confidence = 0
-
-        result = {
-            "score": final_sentiment,
-            "confidence": confidence,
-            "sources": sources,
-            "posts_analyzed": total_posts,
-            "source": "pushshift" if sources else "fallback",
+        return {
+            "score": 50,
+            "confidence": 0,
+            "sources": [],
+            "posts_analyzed": 0,
+            "source": "disabled",
             "timestamp": datetime.now().isoformat(),
         }
-        self._set_cache(cache_key, result)
-        return result
 
     def _analyze_text_sentiment(self, text: str) -> int:
         """
@@ -777,67 +672,17 @@ class FreeIntelligence:
 
     async def get_twitter_sentiment(self, symbol: str) -> Dict:
         """
-        Best-effort social sentiment via various RSS feeds (FREE)
+        Twitter sentiment is no longer available (API changes)
+        Returns neutral sentiment as fallback
         """
-        cache_key = f"twitter_{symbol}"
-        cache = self._get_cache(cache_key)
-        if cache:
-            return cache
-
-        score = 50
-        confidence = 0
-        sources = []
-        tweets_analyzed = 0
-
-        rss_feeds = [
-            (
-                "nitter",
-                "https://nitter.net/search/rss",
-                {"f": "tweets", "q": f"{symbol} OR crypto"},
-            ),
-            (
-                "twttr",
-                "https://twitframe.com/show",
-                {"url": "https://twitter.com/hashtag/crypto"},
-            ),
-        ]
-
-        for source_name, url, params in rss_feeds:
-            try:
-                text = await self._request_text(url, params=params, timeout=10)
-                if text and "error" not in text.lower():
-                    titles = re.findall(r"<title>(.*?)</title>", text, re.DOTALL)
-                    titles = [
-                        t
-                        for t in titles[1:]
-                        if t
-                        and "nitter" not in t.lower()
-                        and "twitter" not in t.lower()
-                    ]
-                    titles = titles[:25]
-                    if titles:
-                        sentiments = [self._analyze_text_sentiment(t) for t in titles]
-                        score = sum(sentiments) / len(sentiments)
-                        confidence = min(len(sentiments) * 4, 100)
-                        sources = [
-                            {"title": t[:140], "source": source_name}
-                            for t in titles[:5]
-                        ]
-                        tweets_analyzed = len(titles)
-                        break
-            except Exception:
-                continue
-
-        result = {
-            "score": score,
-            "confidence": confidence,
-            "sources": sources,
-            "tweets_analyzed": tweets_analyzed,
-            "source": sources[0]["source"] if sources else "fallback",
+        return {
+            "score": 50,
+            "confidence": 0,
+            "sources": [],
+            "tweets_analyzed": 0,
+            "source": "disabled",
             "timestamp": datetime.now().isoformat(),
         }
-        self._set_cache(cache_key, result)
-        return result
 
     async def get_cryptocompare_sentiment(self, symbol: str) -> Dict:
         """
@@ -870,25 +715,15 @@ class FreeIntelligence:
                         social_data = data.get("Data", {})
 
                         # Twitter followers and sentiment
-                        twitter_followers = social_data.get("Twitter", {}).get(
-                            "followers", 0
-                        )
-                        twitter_posts = social_data.get("Twitter", {}).get(
-                            "statuses", 0
-                        )
+                        twitter_followers = social_data.get("Twitter", {}).get("followers", 0)
+                        twitter_posts = social_data.get("Twitter", {}).get("statuses", 0)
 
                         # Reddit subscribers
-                        reddit_subscribers = social_data.get("Reddit", {}).get(
-                            "subscribers", 0
-                        )
-                        reddit_posts = social_data.get("Reddit", {}).get(
-                            "active_users", 0
-                        )
+                        reddit_subscribers = social_data.get("Reddit", {}).get("subscribers", 0)
+                        reddit_posts = social_data.get("Reddit", {}).get("active_users", 0)
 
                         # Telegram
-                        telegram_members = social_data.get("Telegram", {}).get(
-                            "members", 0
-                        )
+                        telegram_members = social_data.get("Telegram", {}).get("members", 0)
 
                         # Overall social score
                         social_scores = []
@@ -928,6 +763,263 @@ class FreeIntelligence:
         }
         self._set_cache(cache_key, result)
         return result
+
+    async def get_dominance_metrics(self) -> Dict:
+        """
+        Get market dominance metrics for BTC, ETH, and altcoins (FREE)
+        Source: CoinGecko API
+        """
+        import logging
+
+        logger = logging.getLogger("IBIS")
+
+        cache_key = "market_dominance"
+        cache = self._get_cache(cache_key)
+        if cache:
+            return cache
+
+        try:
+            session = await self.get_session()
+
+            # Get global market data
+            url = "https://api.coingecko.com/api/v3/global"
+            data = await self._request_json(url, timeout=15)
+
+            if data and "data" in data:
+                global_data = data["data"]
+
+                # BTC dominance
+                btc_dominance = global_data.get("market_cap_percentage", {}).get("btc", 0)
+                eth_dominance = global_data.get("market_cap_percentage", {}).get("eth", 0)
+                altcoin_dominance = 100 - btc_dominance - eth_dominance
+
+                # Market conditions based on dominance
+                market_phase = "BTC"
+                if btc_dominance > 60:
+                    market_phase = "BTC_STRONG"
+                elif btc_dominance < 40:
+                    market_phase = "ALTCOINS_STRONG"
+                elif eth_dominance > 20:
+                    market_phase = "ETH_STRONG"
+                else:
+                    market_phase = "BALANCED"
+
+                # Score dominance for trading decisions
+                # BTC dominance > 60: bearish for alts
+                # BTC dominance < 40: bullish for alts
+                # ETH dominance > 20: ETH strong
+                dominance_score = 50
+                if btc_dominance > 60:
+                    dominance_score = 30
+                elif btc_dominance < 40:
+                    dominance_score = 70
+                elif eth_dominance > 20:
+                    dominance_score = 60
+
+                result = {
+                    "btc_dominance": round(btc_dominance, 2),
+                    "eth_dominance": round(eth_dominance, 2),
+                    "altcoin_dominance": round(altcoin_dominance, 2),
+                    "market_phase": market_phase,
+                    "score": dominance_score,
+                    "confidence": 90,
+                    "source": "coingecko",
+                    "timestamp": datetime.now().isoformat(),
+                }
+
+                self._set_cache(cache_key, result)
+                logger.info(
+                    f"📊 Market Dominance: BTC={btc_dominance:.1f}%, ETH={eth_dominance:.1f}%, Alts={altcoin_dominance:.1f}% ({market_phase})"
+                )
+                return result
+
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to get dominance metrics: {e}")
+
+        return {
+            "btc_dominance": 50.0,
+            "eth_dominance": 20.0,
+            "altcoin_dominance": 30.0,
+            "market_phase": "BALANCED",
+            "score": 50,
+            "confidence": 30,
+            "source": "fallback",
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    async def get_altcoin_season_index(self) -> Dict:
+        """
+        Calculate altcoin season index based on market data (FREE)
+        Source: CoinGecko API
+        """
+        import logging
+
+        logger = logging.getLogger("IBIS")
+
+        cache_key = "altcoin_season"
+        cache = self._get_cache(cache_key)
+        if cache:
+            return cache
+
+        try:
+            session = await self.get_session()
+
+            # Get BTC and ETH data
+            btc_data = await self.get_cmc_sentiment("BTC")
+            eth_data = await self.get_cmc_sentiment("ETH")
+
+            # Get top 10 altcoins (excluding BTC/ETH)
+            url = "https://api.coingecko.com/api/v3/coins/markets"
+            params = {
+                "vs_currency": "usd",
+                "order": "market_cap_desc",
+                "per_page": 15,
+                "page": 1,
+                "sparkline": "false",
+            }
+
+            coins_data = await self._request_json(url, params=params, timeout=15)
+
+            if coins_data:
+                # Filter out BTC and ETH
+                altcoins = [
+                    coin for coin in coins_data if coin["symbol"].lower() not in ["btc", "eth"]
+                ][:10]
+
+                # Calculate average performance
+                btc_change = btc_data.get("price_change_24h", 0)
+                eth_change = eth_data.get("price_change_24h", 0)
+                altcoin_changes = [coin.get("price_change_percentage_24h", 0) for coin in altcoins]
+                avg_alt_change = (
+                    sum(altcoin_changes) / len(altcoin_changes) if altcoin_changes else 0
+                )
+
+                # Calculate season index
+                season_index = 50
+                if avg_alt_change > btc_change + 2:
+                    season_index = 75  # Altcoin season
+                elif avg_alt_change > btc_change + 0.5:
+                    season_index = 60  # Altcoins stronger
+                elif btc_change > avg_alt_change + 2:
+                    season_index = 30  # BTC season
+                elif btc_change > avg_alt_change + 0.5:
+                    season_index = 40  # BTC stronger
+
+                # Determine season type
+                season_type = "NEUTRAL"
+                if season_index >= 70:
+                    season_type = "ALTCOIN_SEASON"
+                elif season_index >= 60:
+                    season_type = "ALTCOIN_STRONG"
+                elif season_index <= 35:
+                    season_type = "BTC_SEASON"
+                elif season_index <= 45:
+                    season_type = "BTC_STRONG"
+
+                result = {
+                    "index": round(season_index, 2),
+                    "type": season_type,
+                    "btc_change": round(btc_change, 2),
+                    "eth_change": round(eth_change, 2),
+                    "avg_alt_change": round(avg_alt_change, 2),
+                    "altcoins_count": len(altcoin_changes),
+                    "confidence": 85,
+                    "source": "coingecko",
+                    "timestamp": datetime.now().isoformat(),
+                }
+
+                self._set_cache(cache_key, result)
+                logger.info(f"🍂 Altcoin Season: {season_type} (Index: {season_index:.1f})")
+                return result
+
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to get altcoin season index: {e}")
+
+        return {
+            "index": 50,
+            "type": "NEUTRAL",
+            "btc_change": 0,
+            "eth_change": 0,
+            "avg_alt_change": 0,
+            "altcoins_count": 0,
+            "confidence": 30,
+            "source": "fallback",
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    async def get_eth_gas_insights(self) -> Dict:
+        """
+        Get ETH gas insights with network health indicators (FREE)
+        Source: Etherscan API
+        """
+        import logging
+
+        logger = logging.getLogger("IBIS")
+
+        cache_key = "eth_gas_insights"
+        cache = self._get_cache(cache_key)
+        if cache:
+            return cache
+
+        try:
+            data = await self.get_gwei_gas()
+
+            fast_gas = data["fast_gas"]
+            slow_gas = data["slow_gas"]
+
+            # Network health indicators
+            network_health = "HEALTHY"
+            if fast_gas > 100:
+                network_health = "CONGESTED"
+            elif fast_gas > 50:
+                network_health = "MODERATE"
+            elif fast_gas < 20:
+                network_health = "OPTIMAL"
+
+            # DeFi activity proxy based on gas
+            defi_activity = "LOW"
+            if fast_gas > 80:
+                defi_activity = "HIGH"
+            elif fast_gas > 40:
+                defi_activity = "MODERATE"
+
+            # Trading conditions
+            trading_conditions = "FAVORABLE"
+            if fast_gas > 100:
+                trading_conditions = "UNFAVORABLE"
+            elif fast_gas > 60:
+                trading_conditions = "CAUTIOUS"
+
+            result = {
+                "fast_gas": fast_gas,
+                "slow_gas": slow_gas,
+                "network_health": network_health,
+                "defi_activity": defi_activity,
+                "trading_conditions": trading_conditions,
+                "score": data["score"],
+                "confidence": data["confidence"],
+                "source": "etherscan",
+                "timestamp": datetime.now().isoformat(),
+            }
+
+            self._set_cache(cache_key, result)
+            logger.info(f"⛽ ETH Gas: {fast_gas} Gwei ({network_health}, {defi_activity} DeFi)")
+            return result
+
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to get ETH gas insights: {e}")
+
+        return {
+            "fast_gas": 20,
+            "slow_gas": 10,
+            "network_health": "MODERATE",
+            "defi_activity": "MODERATE",
+            "trading_conditions": "CAUTIOUS",
+            "score": 50,
+            "confidence": 30,
+            "source": "fallback",
+            "timestamp": datetime.now().isoformat(),
+        }
 
     async def get_holder_metrics(self, symbol: str) -> Dict:
         """
@@ -996,12 +1088,21 @@ class FreeIntelligence:
             self.get_news_sentiment(symbol),
         ]
 
+        # Add dominance metrics if symbol is not BTC or ETH (for altcoin context)
+        if symbol.lower() not in ["btc", "eth"]:
+            tasks.append(self.get_dominance_metrics())
+            tasks.append(self.get_altcoin_season_index())
+
+        # Add ETH gas insights if symbol is ETH or DeFi-related
+        if symbol.lower() == "eth" or "eth" in symbol.lower() or "defi" in symbol.lower():
+            tasks.append(self.get_eth_gas_insights())
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         scores = []
         weights = []
         sources = {}
-        fallback_sources = {"fallback", "unknown", "no_api_key"}
+        fallback_sources = {"fallback", "unknown", "no_api_key", "disabled"}
 
         for result in results:
             if isinstance(result, dict) and "score" in result:
@@ -1044,34 +1145,46 @@ async def test_free_intelligence():
     print(f"   Value: {fng['value']} ({fng['classification']})")
     print(f"   Score: {fng['score']}/100")
 
-    print("\n2. REDDIT SENTIMENT (BTC):")
-    reddit = await intel.get_reddit_sentiment("bitcoin")
-    print(f"   Score: {reddit['score']}/100")
-    print(f"   Confidence: {reddit['confidence']}%")
-    print(f"   Sources: {len(reddit['sources'])}")
+    print("\n2. MARKET DOMINANCE:")
+    dominance = await intel.get_dominance_metrics()
+    print(
+        f"   BTC: {dominance['btc_dominance']}%, ETH: {dominance['eth_dominance']}%, Alts: {dominance['altcoin_dominance']}%"
+    )
+    print(f"   Market Phase: {dominance['market_phase']}")
+    print(f"   Score: {dominance['score']}/100")
 
-    print("\n3. COINMARKETCAP SENTIMENT (BTC):")
+    print("\n3. ALTCOIN SEASON INDEX:")
+    season = await intel.get_altcoin_season_index()
+    print(f"   Index: {season['index']}/100 ({season['type']})")
+    print(
+        f"   BTC: {season['btc_change']}%, ETH: {season['eth_change']}%, Avg Alt: {season['avg_alt_change']}%"
+    )
+
+    print("\n4. ETH GAS INSIGHTS:")
+    eth_gas = await intel.get_eth_gas_insights()
+    print(f"   Fast: {eth_gas['fast_gas']} Gwei, Slow: {eth_gas['slow_gas']} Gwei")
+    print(f"   Network: {eth_gas['network_health']}, DeFi: {eth_gas['defi_activity']}")
+    print(f"   Trading Conditions: {eth_gas['trading_conditions']}")
+
+    print("\n5. COINMARKETCAP SENTIMENT (BTC):")
     cmc = await intel.get_cmc_sentiment("bitcoin")
     print(f"   Score: {cmc['score']}/100")
     print(f"   24h Change: {cmc.get('price_change_24h', 0):.2f}%")
     print(f"   Rank: #{cmc.get('rank', 'N/A')}")
 
-    print("\n4. ON-CHAIN METRICS (BTC):")
+    print("\n6. ON-CHAIN METRICS (BTC):")
     onchain = await intel.get_onchain_metrics("bitcoin")
     print(f"   Score: {onchain['score']}/100")
-    print(f"   Whale Score: {onchain['whale_score']}/100")
     print(f"   Volume Score: {onchain['volume_score']}/100")
-    print(f"   Rank: #{onchain.get('rank', 'N/A')}")
+    print(f"   Circulation Score: {onchain['circulation_score']}/100")
 
-    print("\n5. GAS PRICES:")
-    gas = await intel.get_gwei_gas()
-    print(f"   Fast: {gas['fast_gas']} Gwei")
-    print(f"   Slow: {gas['slow_gas']} Gwei")
-    print(f"   Score: {gas['score']}/100")
-
-    print("\n6. COMPREHENSIVE SENTIMENT (BTC):")
+    print("\n7. COMPREHENSIVE SENTIMENT (BTC):")
     comprehensive = await intel.get_comprehensive_sentiment("bitcoin")
     print(f"   Combined Score: {comprehensive['score']}/100")
+
+    print("\n8. COMPREHENSIVE SENTIMENT (ETH):")
+    eth_comprehensive = await intel.get_comprehensive_sentiment("eth")
+    print(f"   Combined Score: {eth_comprehensive['score']}/100")
 
     await intel.close()
 

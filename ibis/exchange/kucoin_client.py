@@ -277,9 +277,9 @@ class KuCoinClient:
         self._orderbooks: Dict[str, OrderBook] = {}
         self._candles: Dict[str, List[Candle]] = {}
 
-        if self.paper_trading:
-            self._paper_orders: Dict[str, TradeOrder] = {}
-            self._paper_balance: Dict[str, float] = {"USDT": 10000, "BTC": 0, "ETH": 0}
+        # Always initialize paper trading attributes
+        self._paper_orders: Dict[str, TradeOrder] = {}
+        self._paper_balance: Dict[str, float] = {"USDT": 10000, "BTC": 0, "ETH": 0}
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -750,8 +750,22 @@ class KuCoinClient:
         order_id = f"paper_{int(time.time() * 1000)}"
         symbol = order_data["symbol"]
         side = order_data["side"]
-        price = float(order_data["price"])
-        size = float(order_data["size"])
+
+        # Handle market order parameters (KuCoin uses 'funds' for buy market orders)
+        if order_data.get("type") == "market":
+            if side == "buy":
+                funds = float(order_data.get("funds", 0))
+                ticker = self._tickers.get(symbol)
+                current_price = float(ticker.price) if ticker and ticker.price else 0.001
+                size = funds / current_price if current_price > 0 else 0
+                price = current_price
+            else:
+                size = float(order_data.get("size", 0))
+                ticker = self._tickers.get(symbol)
+                price = float(ticker.price) if ticker and ticker.price else 0.001
+        else:
+            price = float(order_data["price"])
+            size = float(order_data["size"])
 
         ticker = self._tickers.get(symbol)
         current_price = price if ticker is None else ticker.price

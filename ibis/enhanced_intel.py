@@ -93,7 +93,8 @@ class EnhancedIntelStreams:
             self.vader = SentimentIntensityAnalyzer()
             logger.info("✓ VADER sentiment analyzer initialized")
         except Exception as e:
-            logger.warning(f"⚠️ VADER initialization failed: {e}")
+            logger.warning(f"⚠️ VADER not available: {e}")
+            self.vader = None
 
     def _get_cache(self, key: str) -> Optional[dict]:
         """Get cached data"""

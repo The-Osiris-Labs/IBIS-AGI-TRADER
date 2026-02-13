@@ -6,7 +6,7 @@ Real-Time Market Data with Dynamic Symbol Discovery
 
 Features:
 • REST API for market data (prices, orderbooks, candles)
-• WebSocket streaming for real-time updates  
+• WebSocket streaming for real-time updates
 • Dynamic symbol discovery from API
 • Automatic fallback to simulation
 """
@@ -28,6 +28,7 @@ logger = logging.getLogger("IBIS-DATA")
 
 try:
     import aiohttp
+
     AIOHTTP_AVAILABLE = True
 except ImportError:
     AIOHTTP_AVAILABLE = False
@@ -37,6 +38,7 @@ except ImportError:
 @dataclass
 class MarketPrice:
     """Current market price data."""
+
     symbol: str
     price: float
     change_24h: float
@@ -49,6 +51,7 @@ class MarketPrice:
 @dataclass
 class OrderBook:
     """Order book data."""
+
     symbol: str
     bids: List[tuple]
     asks: List[tuple]
@@ -59,6 +62,7 @@ class OrderBook:
 @dataclass
 class Candle:
     """Candlestick data."""
+
     symbol: str
     timeframe: str
     timestamp: str
@@ -75,14 +79,20 @@ class KuCoinRESTClient:
 
     BASE_URL = "https://api.kucoin.com"
     SANDBOX_URL = "https://api-sandbox.kucoin.com"
+    RATE_LIMIT = 10  # requests per second
+    RATE_LIMIT_WINDOW = 1.0  # seconds
 
-    def __init__(self, api_key: str = "", api_secret: str = "", passphrase: str = "", sandbox: bool = False):
+    def __init__(
+        self, api_key: str = "", api_secret: str = "", passphrase: str = "", sandbox: bool = False
+    ):
         self.api_key = api_key
         self.api_secret = api_secret
         self.passphrase = passphrase
         self.sandbox = sandbox
         self.base_url = self.SANDBOX_URL if sandbox else self.BASE_URL
         self.session = None
+        self._last_request_time = 0.0
+        self._request_count = 0
 
     async def _get_session(self):
         if self.session is None:
@@ -90,7 +100,21 @@ class KuCoinRESTClient:
             self.session = aiohttp.ClientSession(timeout=timeout)
         return self.session
 
-    async def _request(self, method: str, endpoint: str, params: Dict = None, auth: bool = False) -> Dict:
+    async def _request(
+        self, method: str, endpoint: str, params: Dict = None, auth: bool = False
+    ) -> Dict:
+        # Rate limiting
+        now = time.time()
+        if now - self._last_request_time < self.RATE_LIMIT_WINDOW:
+            self._request_count += 1
+            if self._request_count >= self.RATE_LIMIT:
+                await asyncio.sleep(self.RATE_LIMIT_WINDOW - (now - self._last_request_time))
+                self._last_request_time = time.time()
+                self._request_count = 1
+        else:
+            self._last_request_time = now
+            self._request_count = 1
+
         session = await self._get_session()
         url = f"{self.base_url}{endpoint}"
         headers = {"Content-Type": "application/json"}
@@ -102,18 +126,18 @@ class KuCoinRESTClient:
                 message += json.dumps(params)
 
             signature = hmac.new(
-                self.api_secret.encode(),
-                message.encode(),
-                hashlib.sha256
+                self.api_secret.encode(), message.encode(), hashlib.sha256
             ).hexdigest()
 
-            headers.update({
-                "KC-API-KEY": self.api_key,
-                "KC-API-SIGN": signature,
-                "KC-API-TIMESTAMP": timestamp,
-                "KC-API-PASSPHRASE": self.passphrase,
-                "KC-API-KEY-VERSION": "2",
-            })
+            headers.update(
+                {
+                    "KC-API-KEY": self.api_key,
+                    "KC-API-SIGN": signature,
+                    "KC-API-TIMESTAMP": timestamp,
+                    "KC-API-PASSPHRASE": self.passphrase,
+                    "KC-API-KEY-VERSION": "2",
+                }
+            )
 
         try:
             if method.upper() == "GET":
@@ -121,7 +145,7 @@ class KuCoinRESTClient:
                     data = await resp.json()
             else:
                 return {}
-            
+
             if data.get("code") == "200000":
                 return data.get("data", {})
             else:
@@ -142,7 +166,9 @@ class KuCoinRESTClient:
 
     async def get_ticker(self, symbol: str) -> Optional[MarketPrice]:
         """Get 24hr ticker for a symbol."""
-        data = await self._request("GET", f"/api/v1/market/orderbook/level2_100", {"symbol": symbol})
+        data = await self._request(
+            "GET", f"/api/v1/market/orderbook/level2_100", {"symbol": symbol}
+        )
         if data:
             ticker = data.get("data", {})
             return MarketPrice(
@@ -163,40 +189,65 @@ class KuCoinRESTClient:
             for ticker in data.get("ticker", []):
                 symbol = ticker.get("symbol", "")
                 if symbol.endswith("-USDT"):
-                    tickers.append(MarketPrice(
-                        symbol=symbol,
-                        price=float(ticker.get("last", 0)),
-                        change_24h=float(ticker.get("changeRate", 0)) * 100,
-                        volume_24h=float(ticker.get("vol", 0)),
-                        high_24h=float(ticker.get("high", 0)),
-                        low_24h=float(ticker.get("low", 0)),
-                    ))
+                    tickers.append(
+                        MarketPrice(
+                            symbol=symbol,
+                            price=float(ticker.get("last", 0)),
+                            change_24h=float(ticker.get("changeRate", 0)) * 100,
+                            volume_24h=float(ticker.get("vol", 0)),
+                            high_24h=float(ticker.get("high", 0)),
+                            low_24h=float(ticker.get("low", 0)),
+                        )
+                    )
         return tickers
 
-    async def get_candles(self, symbol: str, timeframe: str = "1min", limit: int = 100) -> List[Candle]:
+    async def get_candles(
+        self, symbol: str, timeframe: str = "1min", limit: int = 100
+    ) -> List[Candle]:
         """Get candlestick data for any symbol."""
         params = {"symbol": symbol, "type": timeframe, "pageSize": limit}
         data = await self._request("GET", "/api/v1/market/candles", params)
-        
+
         candles = []
-        if data and "time" in data:
+        if data and isinstance(data, list):
+            # Handle case where API returns data directly
+            for c in data:
+                candles.append(
+                    Candle(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        timestamp=datetime.fromtimestamp(int(c[0])).strftime("%Y-%m-%d %H:%M"),
+                        open=float(c[1]),
+                        high=float(c[2]),
+                        low=float(c[3]),
+                        close=float(c[4]),
+                        volume=float(c[5]),
+                        turnover=float(c[6]),
+                    )
+                )
+        elif data and "data" in data and isinstance(data["data"], list):
+            # Handle case where API returns data in data field
             for c in data.get("data", []):
-                candles.append(Candle(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    timestamp=datetime.fromtimestamp(int(c[0])).strftime("%Y-%m-%d %H:%M"),
-                    open=float(c[1]),
-                    high=float(c[2]),
-                    low=float(c[3]),
-                    close=float(c[4]),
-                    volume=float(c[5]),
-                    turnover=float(c[6]),
-                ))
+                candles.append(
+                    Candle(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        timestamp=datetime.fromtimestamp(int(c[0])).strftime("%Y-%m-%d %H:%M"),
+                        open=float(c[1]),
+                        high=float(c[2]),
+                        low=float(c[3]),
+                        close=float(c[4]),
+                        volume=float(c[5]),
+                        turnover=float(c[6]),
+                    )
+                )
         return candles
 
 
 class MarketDataManager:
     """Unified market data manager with dynamic discovery."""
+
+    CACHE_TTL = 30  # seconds
 
     def __init__(self, api_key: str = "", api_secret: str = "", passphrase: str = ""):
         self.rest_client = KuCoinRESTClient(api_key, api_secret, passphrase)
@@ -207,6 +258,7 @@ class MarketDataManager:
         self.price_history: Dict[str, deque] = {}
         self.last_update: datetime = None
         self._discovered_symbols: Set[str] = set()
+        self._cache_timestamps: Dict[str, datetime] = {}
 
     @property
     def symbols(self) -> List[str]:
@@ -224,10 +276,18 @@ class MarketDataManager:
         return symbols
 
     async def fetch_all(self):
-        """Fetch all market data dynamically."""
+        """Fetch all market data dynamically with cache validation."""
         if not self._discovered_symbols:
             await self.discover_symbols()
-        
+
+        # Check if cache is fresh
+        if (
+            self.last_update
+            and (datetime.now() - self.last_update).total_seconds() < self.CACHE_TTL
+        ):
+            logger.debug("Using cached market data (TTL not expired)")
+            return
+
         try:
             tickers = await self.rest_client.get_all_tickers()
             for ticker in tickers:
@@ -235,7 +295,9 @@ class MarketDataManager:
                 if ticker.symbol not in self.price_history:
                     self.price_history[ticker.symbol] = deque(maxlen=1000)
                 self.price_history[ticker.symbol].append(ticker.price)
+                self._cache_timestamps[ticker.symbol] = datetime.now()
             self.last_update = datetime.now()
+            logger.debug(f"Fetched market data for {len(tickers)} symbols")
         except Exception as e:
             logger.error(f"Fetch failed: {e}")
             self._simulate_market_data()
@@ -259,7 +321,9 @@ class MarketDataManager:
 
     def _simulate_market_data(self):
         """Simulation mode - discovers nothing, waits for real data."""
-        logger.info("Running in simulation mode - symbols will be discovered from API on connection")
+        logger.info(
+            "Running in simulation mode - symbols will be discovered from API on connection"
+        )
 
     async def close(self):
         """Close connections."""
@@ -288,6 +352,7 @@ class KuCoinWebSocketClient:
 
         try:
             import aiohttp
+
             self.session = aiohttp.ClientSession()
             self.ws = await self.session.ws_connect(self.PUBLIC_WS_URL)
             self.running = True

@@ -52,9 +52,7 @@ class MarketIntelligence:
         if self._session and not self._session.closed:
             await self._session.close()
 
-    async def _make_request(
-        self, url, params=None, headers=None, timeout=10, max_retries=3
-    ):
+    async def _make_request(self, url, params=None, headers=None, timeout=10, max_retries=3):
         """Make asynchronous HTTP request with retry logic and maximum retries"""
         session = await self._get_session()
         for attempt in range(max_retries):
@@ -79,16 +77,12 @@ class MarketIntelligence:
                     elif response.status == 404:
                         raise Exception(f"Resource not found: {await response.text()}")
                     else:
-                        raise Exception(
-                            f"HTTP error {response.status}: {await response.text()}"
-                        )
+                        raise Exception(f"HTTP error {response.status}: {await response.text()}")
             except Exception as e:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(1 * (attempt + 1))
                     continue
-                raise Exception(
-                    f"Request failed after {max_retries} attempts: {str(e)}"
-                )
+                raise Exception(f"Request failed after {max_retries} attempts: {str(e)}")
 
     async def coingecko_get_market_data(self, symbols, currency="usd"):
         """
@@ -149,14 +143,10 @@ class MarketIntelligence:
                     "price": item["current_price"],
                     "market_cap": item["market_cap"],
                     "volume_24h": item["total_volume"],
-                    "change_1h": item.get("price_change_percentage_1h_in_currency", 0)
-                    or 0,
-                    "change_24h": item.get("price_change_percentage_24h_in_currency", 0)
-                    or 0,
-                    "change_7d": item.get("price_change_percentage_7d_in_currency", 0)
-                    or 0,
-                    "change_30d": item.get("price_change_percentage_30d_in_currency", 0)
-                    or 0,
+                    "change_1h": item.get("price_change_percentage_1h_in_currency", 0) or 0,
+                    "change_24h": item.get("price_change_percentage_24h_in_currency", 0) or 0,
+                    "change_7d": item.get("price_change_percentage_7d_in_currency", 0) or 0,
+                    "change_30d": item.get("price_change_percentage_30d_in_currency", 0) or 0,
                     "high_24h": item.get("high_24h", 0) or 0,
                     "low_24h": item.get("low_24h", 0) or 0,
                     "sparkline": item.get("sparkline_in_7d"),
@@ -361,9 +351,7 @@ class MarketIntelligence:
                 }
 
                 # Get additional metrics using base symbol
-                glassnode_data = await self.glassnode_get_onchain_data(
-                    base_sym, "market/price_usd"
-                )
+                glassnode_data = await self.glassnode_get_onchain_data(base_sym, "market/price_usd")
                 if glassnode_data:
                     intelligence[symbol]["metrics"]["glassnode"] = glassnode_data
 
@@ -425,7 +413,8 @@ class MarketIntelligence:
         return insights
 
     def calculate_intelligence_score(self, symbol, intelligence):
-        """Calculate comprehensive intelligence score (0-100)"""
+        """Calculate comprehensive intelligence score using unified scorer (0-100)"""
+        from ibis.core.unified_scoring import unified_scorer
 
         data = (
             intelligence.get(symbol)
@@ -436,43 +425,27 @@ class MarketIntelligence:
         if not isinstance(data, dict) or "change_24h" not in data:
             return 50.0
 
-        score = 0
-        base_score = 0
+        # Extract necessary fields for unified scorer
+        momentum_1h = data.get("change_1h", 0)
+        change_24h = data.get("change_24h", 0)
+        volatility = data.get("volatility", 0.05)
+        volume_24h = data.get("volume_24h", 0)
 
-        chg_24h = data.get("change_24h", 0)
-        chg_7d = data.get("change_7d", 0)
-        chg_1h = data.get("change_1h", 0)
+        # Calculate technical score
+        technical_score = unified_scorer.calculate_technical_score(
+            momentum_1h=momentum_1h,
+            change_24h=change_24h,
+            volatility=volatility,
+            volume_24h=volume_24h,
+        )
 
-        if chg_24h > 5:
-            base_score += 20
-        elif chg_24h > 2:
-            base_score += 15
-        elif chg_24h > 0:
-            base_score += 10
-        elif chg_24h > -2:
-            base_score += 5
-        elif chg_24h > -5:
-            base_score += 2
+        # Calculate complete unified score from all available data
+        result = unified_scorer.calculate_unified_score_from_data(
+            symbol=symbol,
+            symbol_data=data,
+        )
 
-        if chg_7d > 10:
-            base_score += 15
-        elif chg_7d > 5:
-            base_score += 10
-        elif chg_7d > 0:
-            base_score += 5
-
-        mcap = data.get("market_cap", 0)
-        vol = data.get("volume_24h", 0)
-        if mcap > 0:
-            vol_ratio = vol / mcap
-            if vol_ratio > 0.1:
-                base_score += 20
-            elif vol_ratio > 0.05:
-                base_score += 15
-            elif vol_ratio > 0.02:
-                base_score += 10
-            elif vol_ratio > 0.01:
-                base_score += 5
+        return result["score"]
 
         if chg_1h > 1 and chg_24h > 1:
             base_score += 15

@@ -145,7 +145,7 @@ def score_snipe_opportunity(
     fear_greed_index: int = 50,
     momentum_1h: float = 0,
     change_24h: float = 0,
-    min_volume: float = 100000,
+    min_volume: float = 50000,
 ) -> dict:
     """
     Comprehensive snipe opportunity scoring combining all enhanced signals.
@@ -176,13 +176,13 @@ def score_snipe_opportunity(
     else:
         sentiment_score = 30
 
-    # Weights for final score
+    # Weights for final score - more aggressive
     weights = {
-        "technical": 0.20,
-        "agi": 0.25,
-        "mtf": 0.15,
-        "price_action": 0.20,
-        "volume": 0.10,
+        "technical": 0.15,
+        "agi": 0.20,
+        "mtf": 0.10,
+        "price_action": 0.30,
+        "volume": 0.15,
         "sentiment": 0.10,
     }
 
@@ -196,18 +196,22 @@ def score_snipe_opportunity(
         + sentiment_score * weights["sentiment"]
     )
 
-    # Apply boosts from enhanced signals
+    # Apply boosts from enhanced signals - more aggressive
     boosts = 0
     if breakout_data["breakout"]:
-        boosts += 10
+        boosts += 15
         if breakout_data["confirmed"]:
-            boosts += 5
-    if volume_momentum > 1.5:
-        boosts += 5
-    if upward_prediction["probability"] >= 70:
-        boosts += 5
+            boosts += 10
+    if volume_momentum > 1.3:
+        boosts += 8
+    if volume_momentum > 1.8:
+        boosts += 12
+    if upward_prediction["probability"] >= 65:
+        boosts += 8
+    if upward_prediction["probability"] >= 75:
+        boosts += 15
     if upward_prediction["confidence"] == "high":
-        boosts += 5
+        boosts += 10
 
     final_score = min(100, unified_score + boosts)
 

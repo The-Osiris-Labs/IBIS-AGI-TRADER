@@ -47,6 +47,8 @@ class SymbolRules:
 class EnhancedExecutionEngine:
     """Enhanced execution engine with error recovery and proper quantity handling"""
 
+    ORDER_EXPIRY_MINUTES = 30  # 30 minutes order expiry
+
     def __init__(self):
         self.db = IbisDB()
         self.client = get_kucoin_client()
@@ -56,6 +58,7 @@ class EnhancedExecutionEngine:
         self.circuit_breaker: Dict[str, datetime] = {}  # Blocked positions
         self.max_retry_attempts = 3
         self.circuit_breaker_timeout_minutes = 5
+        self.active_orders: Dict[str, datetime] = {}  # Track active orders and their creation times
 
     async def initialize(self):
         """Initialize all components"""
@@ -212,13 +215,16 @@ class EnhancedExecutionEngine:
                 logger.info(
                     f"🚀 BUY {symbol}: ${size_usd:.2f} ({quantity:.8f}) [Attempt {attempt + 1}]"
                 )
-                order = await self.client.create_order(
-                    symbol=symbol, side="buy", type="market", price=0, size=quantity
-                )
+                 order = await self.client.create_order(
+                        symbol=symbol, side="buy", type="market", price=0, size=quantity
+                    )
 
-                self.db.update_position(
-                    symbol, quantity, price, agi_score=50, agi_insight="IBIS v2 Entry"
-                )
+                    # Track active order
+                    self.active_orders[order["orderId"]] = now
+
+                    self.db.update_position(
+                        symbol, quantity, price, agi_score=50, agi_insight="IBIS v2 Entry"
+                    )
                 logger.info(f"✅ BUY SUCCESS: {symbol}")
                 return True
 
@@ -226,9 +232,7 @@ class EnhancedExecutionEngine:
                 logger.warning(f"⚠️ BUY attempt {attempt + 1} failed: {e}")
                 await asyncio.sleep(1)
 
-        logger.error(
-            f"❌ BUY failed after {self.max_retry_attempts} attempts: {symbol}"
-        )
+        logger.error(f"❌ BUY failed after {self.max_retry_attempts} attempts: {symbol}")
         return False
 
     async def _execute_sell_with_retry(self, symbol: str, quantity: float) -> bool:
@@ -237,9 +241,7 @@ class EnhancedExecutionEngine:
 
         if symbol in self.circuit_breaker:
             last_failed = self.circuit_breaker[symbol]
-            if (
-                now - last_failed
-            ).total_seconds() < self.circuit_breaker_timeout_minutes * 60:
+            if (now - last_failed).total_seconds() < self.circuit_breaker_timeout_minutes * 60:
                 logger.warning(f"⏸️ Circuit breaker active for {symbol}")
                 return False
             else:
@@ -261,12 +263,13 @@ class EnhancedExecutionEngine:
                     logger.warning(f"⚠️ Invalid quantity for {symbol}: {rounded_qty}")
                     return False
 
-                logger.info(
-                    f"🛑 SELL {symbol}: {rounded_qty:.8f} [Attempt {attempt + 1}]"
-                )
-                order = await self.client.create_order(
+                logger.info(f"🛑 SELL {symbol}: {rounded_qty:.8f} [Attempt {attempt + 1}]")
+                 order = await self.client.create_order(
                     symbol=symbol, side="sell", type="market", price=0, size=rounded_qty
                 )
+
+                # Track active order
+                self.active_orders[order["orderId"]] = now
 
                 self.db.close_position(symbol, 0, "SELL_ORDER")
                 logger.info(f"✅ SELL SUCCESS: {symbol}")
@@ -282,9 +285,7 @@ class EnhancedExecutionEngine:
 
                 await asyncio.sleep(1)
 
-        logger.error(
-            f"❌ SELL failed after {self.max_retry_attempts} attempts: {symbol}"
-        )
+        logger.error(f"❌ SELL failed after {self.max_retry_attempts} attempts: {symbol}")
         return False
 
     async def _fix_and_retry(self, symbol: str, original_qty: float, attempt: int):
@@ -292,9 +293,7 @@ class EnhancedExecutionEngine:
         try:
             rules = await self._fetch_symbol_rules(symbol)
             if rules:
-                logger.info(
-                    f"   🔧 Fixing quantity for {symbol} (min_size: {rules.base_min_size})"
-                )
+                logger.info(f"   🔧 Fixing quantity for {symbol} (min_size: {rules.base_min_size})")
 
                 if rules.base_min_size > 0:
                     fixed_qty = rules.base_min_size
@@ -362,11 +361,10 @@ class EnhancedExecutionEngine:
                 balances = await self.client.get_all_balances()
                 usdt = float(balances.get("USDT", {}).get("available", 0))
 
-                logger.info(
-                    f"💓 Heartbeat: {len(positions)} positions | USDT: ${usdt:.2f}"
-                )
+                logger.info(f"💓 Heartbeat: {len(positions)} positions | USDT: ${usdt:.2f}")
 
                 await self.manage_positions()
+                await self.check_order_expiry()
 
                 if usdt >= TRADING.POSITION.MIN_CAPITAL_PER_TRADE:
                     logger.info(f"   🎯 Capital available for trading: ${usdt:.2f}")
@@ -376,6 +374,24 @@ class EnhancedExecutionEngine:
             except Exception:
                 logger.exception("⚠️ Engine Loop Error")
                 await asyncio.sleep(5)
+
+    async def check_order_expiry(self):
+        """Check and handle expired orders"""
+        now = datetime.now()
+        expired_orders = []
+
+        for order_id, created_time in self.active_orders.items():
+            if (now - created_time).total_seconds() > self.ORDER_EXPIRY_MINUTES * 60:
+                expired_orders.append(order_id)
+                logger.warning(f"⏰ Order {order_id} expired")
+
+        for order_id in expired_orders:
+            try:
+                await self.client.cancel_order(order_id)
+                del self.active_orders[order_id]
+                logger.info(f"✅ Order {order_id} cancelled")
+            except Exception as e:
+                logger.error(f"❌ Failed to cancel expired order {order_id}: {e}")
 
     async def shutdown(self):
         """Clean shutdown"""

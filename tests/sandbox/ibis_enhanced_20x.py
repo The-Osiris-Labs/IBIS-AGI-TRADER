@@ -157,7 +157,9 @@ class EnhancedRiskManager:
             volatility_multiplier = 1.0
 
         # 🎯 POSITION DIVERSIFICATION (Capital management)
-        position_multiplier = 1.0 / (1 + current_positions * 0.15)  # More aggressive reduction
+        position_multiplier = 1.0 / (
+            1 + current_positions * 0.08
+        )  # Moderate reduction per position
 
         # 🎯 FEAR & GREED ADJUSTMENT (Contrarian)
         fg_index = self.config.get("fear_greed_index", 50)
@@ -177,7 +179,7 @@ class EnhancedRiskManager:
             * fg_multiplier
         )
         size_pct = min(size_pct, max_pct)
-        size_pct = max(size_pct, 5.0)  # Minimum 5% position size
+        size_pct = max(size_pct, 15.0)  # Minimum 15% position size for viability
 
         position_size = (available_capital * size_pct) / 100
 
@@ -288,8 +290,8 @@ class MultiTimeframeAnalyzer:
             "1m": "1min",
             "5m": "5min",
             "15m": "15min",
-            "1h": "1hour",
-            "4h": "4hour",
+            "1h": "1h",
+            "4h": "4h",
         }
 
     async def analyze_all_timeframes(self, symbol: str, timeout: float = 8.0) -> Dict:
