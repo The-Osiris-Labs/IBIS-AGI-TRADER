@@ -16,12 +16,12 @@ async def diagnose_symbol_discovery():
     print()
 
     agent = IBISTrueAgent()
-    await agent.initialize_client()
+    await agent.initialize()
 
     try:
         # Test symbol discovery
         print("1. Testing trading pair discovery...")
-        await agent.discover_symbols()
+        await agent.discover_market()
         print(f"   Found {len(agent.symbols_cache)} trading pairs")
         if agent.symbols_cache:
             print(f"   First 10 symbols: {agent.symbols_cache[:10]}")
@@ -44,9 +44,7 @@ async def diagnose_symbol_discovery():
         print("3. Testing ticker data fetch...")
         tickers = await agent.client.get_tickers()
         ticker_map = {
-            t.symbol.replace("-USDT", ""): t
-            for t in tickers
-            if t.symbol.endswith("-USDT")
+            t.symbol.replace("-USDT", ""): t for t in tickers if t.symbol.endswith("-USDT")
         }
         print(f"   Got {len(ticker_map)} USDT pairs")
 
@@ -65,17 +63,11 @@ async def diagnose_symbol_discovery():
             try:
                 price = float(ticker.price)
                 volume_24h = float(
-                    getattr(ticker, "vol_24h", 0)
-                    or getattr(ticker, "volume_24h", 0)
-                    or 0
+                    getattr(ticker, "vol_24h", 0) or getattr(ticker, "volume_24h", 0) or 0
                 )
                 change_24h = float(getattr(ticker, "change_24h", 0) or 0)
-                high_24h = float(
-                    getattr(ticker, "high_24h", price * 1.01) or price * 1.01
-                )
-                low_24h = float(
-                    getattr(ticker, "low_24h", price * 0.99) or price * 0.99
-                )
+                high_24h = float(getattr(ticker, "high_24h", price * 1.01) or price * 1.01)
+                low_24h = float(getattr(ticker, "low_24h", price * 0.99) or price * 0.99)
 
                 volatility = (high_24h - low_24h) / price
 
@@ -104,17 +96,11 @@ async def diagnose_symbol_discovery():
             try:
                 price = float(ticker.price)
                 volume_24h = float(
-                    getattr(ticker, "vol_24h", 0)
-                    or getattr(ticker, "volume_24h", 0)
-                    or 0
+                    getattr(ticker, "vol_24h", 0) or getattr(ticker, "volume_24h", 0) or 0
                 )
                 change_24h = float(getattr(ticker, "change_24h", 0) or 0)
-                high_24h = float(
-                    getattr(ticker, "high_24h", price * 1.01) or price * 1.01
-                )
-                low_24h = float(
-                    getattr(ticker, "low_24h", price * 0.99) or price * 0.99
-                )
+                high_24h = float(getattr(ticker, "high_24h", price * 1.01) or price * 1.01)
+                low_24h = float(getattr(ticker, "low_24h", price * 0.99) or price * 0.99)
 
                 volatility = (high_24h - low_24h) / price
 
@@ -156,7 +142,8 @@ async def diagnose_symbol_discovery():
         print(f"\n{traceback.format_exc()}")
 
     finally:
-        await agent.shutdown()
+        # No shutdown method needed
+        pass
 
 
 if __name__ == "__main__":

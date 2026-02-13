@@ -52,12 +52,12 @@ class CriticalThresholds:
 class ScoreThresholds:
     """Opportunity scoring thresholds"""
 
-    GOD_TIER: int = 85  # Exceptional
-    HIGH_CONFIDENCE: int = 75  # High confidence
-    STRONG_SETUP: int = 65  # Strong setup
-    GOOD_SETUP: int = 60  # Good opportunity
-    STANDARD: int = 50  # Standard opportunity
-    MIN_THRESHOLD: int = 35  # Minimum to consider
+    GOD_TIER: int = 90  # Exceptional
+    HIGH_CONFIDENCE: int = 85  # High confidence
+    STRONG_SETUP: int = 80  # Strong setup
+    GOOD_SETUP: int = 75  # Good opportunity
+    STANDARD: int = 70  # Standard opportunity
+    MIN_THRESHOLD: int = 65  # Minimum to consider
     MARKET_PRIMED_HIGH_COUNT: int = 5  # Number of high-scoring symbols for "primed" mode
     MARKET_PRIMED_AVG_SCORE: int = 70  # Lowered to be more aggressive
 
@@ -289,25 +289,25 @@ class ExecutionConfig:
 class MultiplierConfig:
     """Position sizing multipliers based on score thresholds"""
 
-    GOD_TIER_MULTIPLIER: float = 5.0  # Score >= 95 (more aggressive)
-    HIGH_CONFIDENCE_MULTIPLIER: float = 4.0  # Score >= 90 (more aggressive)
-    STRONG_SETUP_MULTIPLIER: float = 3.0  # Score >= 85 (more aggressive)
-    GOOD_SETUP_MULTIPLIER: float = 2.5  # Score >= 80 (more aggressive)
-    STANDARD_MULTIPLIER: float = 1.5  # Score < 80 (more aggressive)
+    GOD_TIER_MULTIPLIER: float = 2.0  # Score >= 95
+    HIGH_CONFIDENCE_MULTIPLIER: float = 1.8  # Score >= 90
+    STRONG_SETUP_MULTIPLIER: float = 1.5  # Score >= 85
+    GOOD_SETUP_MULTIPLIER: float = 1.3  # Score >= 80
+    STANDARD_MULTIPLIER: float = 1.1  # Score < 80
 
-    REGIME_TRENDING_MULTIPLIER: float = 1.5  # Bull trending market (more aggressive)
-    REGIME_FLAT_MULTIPLIER: float = 1.0  # Flat/range-bound market (no reduction)
-    REGIME_DEFAULT_MULTIPLIER: float = 1.2  # Normal/volatile markets (more aggressive)
+    REGIME_TRENDING_MULTIPLIER: float = 1.2  # Bull trending market
+    REGIME_FLAT_MULTIPLIER: float = 1.0  # Flat/range-bound market
+    REGIME_DEFAULT_MULTIPLIER: float = 1.1  # Normal/volatile markets
 
-    MARKET_PRIMED_MULTIPLIER: float = 2.0  # Multiplier when market is primed (more aggressive)
-    BASE_SIZE_PCT: float = 0.40  # Base position size percentage (40% per trade)
+    MARKET_PRIMED_MULTIPLIER: float = 1.3  # Multiplier when market is primed
+    BASE_SIZE_PCT: float = 0.25  # Base position size percentage (25% per trade)
 
 
 @dataclass
 class FilterConfig:
     """Symbol filtering configuration"""
 
-    MIN_LIQUIDITY: int = 1000
+    MIN_LIQUIDITY: int = 50000
     MAX_SPREAD: float = 0.02
     STABLECOINS: set = field(default_factory=lambda: {"USDT", "USDC", "DAI", "BUSD"})
     IGNORED_SYMBOLS: set = field(default_factory=lambda: set())

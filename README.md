@@ -81,10 +81,10 @@ IBIS evaluates every symbol with a unified score from 0-100:
 
 | Score Range | Tier | Action |
 |-------------|------|--------|
-| 90+ | GOD_TIER | Maximum position size, 3% take-profit |
-| 80-89 | HIGH_CONFIDENCE | Large positions, 2.5% take-profit |
-| 70-79 | STRONG_SETUP | Standard positions, 2% take-profit |
-| 60-69 | STANDARD | Reduced size, 1.5% take-profit |
+| 90+ | GOD_TIER | Maximum position size, 0.8% take-profit |
+| 80-89 | HIGH_CONFIDENCE | Large positions, 0.8% take-profit |
+| 70-79 | STRONG_SETUP | Standard positions, 0.8% take-profit |
+| 60-69 | STANDARD | Reduced size, 0.8% take-profit |
 | Below 60 | WEAK | Skipped entirely |
 
 The score combines:

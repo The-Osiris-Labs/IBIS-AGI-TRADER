@@ -1183,6 +1183,20 @@ class IBISTrueAgent:
             ticker_map = {}
             self.latest_tickers = {}
 
+        # Get Fear & Greed index early for scoring
+        fg_score = 50
+        try:
+            fg_data = await self.free_intel.get_fear_greed_index()
+            fg_value = fg_data.get("value", "N/A")
+            fg_class = fg_data.get("value_classification", "N/A")
+            fg_source = fg_data.get("source", "unknown")
+            fg_score = fg_data.get("score", 50)
+            self.log_event(
+                f"   📊 Fear & Greed: {fg_value} ({fg_class}) | source: {fg_source} | score: {fg_score}"
+            )
+        except Exception as e:
+            self.log_event(f"   ⚠️ Fear & Greed fetch failed: {e}")
+
         # Enhanced symbol discovery and rapid screening
         min_liquidity = self.config.get("min_liquidity", 1000)
         potential_symbols = []
@@ -1192,9 +1206,7 @@ class IBISTrueAgent:
             log_event("   📊 Using dynamic symbol discovery")
             for ticker_symbol, ticker in ticker_map.items():
                 try:
-                    vol = float(
-                        getattr(ticker, "vol_24h", 0) or getattr(ticker, "volume_24h", 0) or 0
-                    )
+                    vol = float(getattr(ticker, "volume_24h", 0) or 0)
                     if float(ticker.price) > 0 and vol >= min_liquidity:
                         potential_symbols.append(ticker_symbol)
                 except:
@@ -1206,9 +1218,7 @@ class IBISTrueAgent:
                 if not ticker:
                     continue
                 try:
-                    vol = float(
-                        getattr(ticker, "vol_24h", 0) or getattr(ticker, "volume_24h", 0) or 0
-                    )
+                    vol = float(getattr(ticker, "volume_24h", 0) or 0)
                     if float(ticker.price) > 0 and vol >= min_liquidity:
                         potential_symbols.append(sym)
                 except:
@@ -1357,70 +1367,6 @@ class IBISTrueAgent:
                 self.log_event(f"      🐛 Traceback: {traceback.format_exc()}")
                 return None
 
-                candle_analysis = self._analyze_candles(candles_1m, candles_5m, candles_15m)
-
-                volatility = (high_24h - low_24h) / price if high_24h > low_24h else 0.02
-
-                momentum_1h = candle_analysis.get("momentum_1h", 0)
-                price_action = candle_analysis.get("price_action", "neutral")
-
-                base_score = self._calculate_technical_strength(momentum_1h, change_24h)
-
-                # Simplified scoring - don't wait for external APIs
-                indicator_composite = candle_analysis.get("composite_score", 50)
-
-                # Basic score from technicals only (fast)
-                score = base_score
-
-                # Add snipe scoring (fast calculation)
-                closes = [float(c.close) for c in candles_1m if hasattr(c, "close")]
-                volumes = [float(c.volume) for c in candles_1m if hasattr(c, "volume")]
-
-                if len(closes) >= 10 and len(volumes) >= 10:
-                    snipe_result = score_snipe_opportunity(
-                        symbol=sym,
-                        closes=closes,
-                        volumes=volumes,
-                        technical_score=base_score,
-                        agi_score=indicator_composite,
-                        mtf_score=50,
-                        volume_24h=volume_24h,
-                        fear_greed_index=fg_score,
-                        momentum_1h=momentum_1h,
-                        change_24h=change_24h,
-                    )
-                    score = (
-                        (base_score * 0.4)
-                        + (indicator_composite * 0.2)
-                        + (snipe_result["final_score"] * 0.4)
-                    )
-
-                volatility = (high_24h - low_24h) / price if high_24h > low_24h else 0.02
-
-                return {
-                    "symbol": sym,
-                    "price": price,
-                    "change_24h": change_24h,
-                    "momentum_1h": momentum_1h,
-                    "volatility": volatility,
-                    "volatility_1m": candle_analysis.get("volatility_1m", 0.02),
-                    "volatility_5m": candle_analysis.get("volatility_5m", 0.02),
-                    "volatility_15m": candle_analysis.get("volatility_15m", 0.02),
-                    "spread": min(volatility * 0.3, 0.02),
-                    "volume_24h": volume_24h,
-                    "score": score,
-                    "snipe_score": snipe_result,
-                    "unified_intel": {"unified_score": 50, "sources_working": 0},
-                    "enhanced_intel": candle_analysis,
-                    "timestamp": datetime.now().isoformat(),
-                    "risk_level": self._calculate_risk_level(volatility, score),
-                    "candle_analysis": candle_analysis,
-                    "agi_insight": f"Technical Score: {base_score:.1f} | Snipe: {snipe_result['tier']} ({snipe_result['final_score']:.1f})",
-                }
-            except Exception as e:
-                # self.log_event(f"      ⚠️ Analysis for {sym} failed: {e}")
-                return None
-
         # 🚀 TRULY DYNAMIC SYMBOL DISCOVERY SYSTEM
         # Fetches real-time trading pairs from exchange on every cycle for maximum freshness
         cycle_count = self.state.get("cycle_count", 0)
@@ -1508,6 +1454,15 @@ class IBISTrueAgent:
 
         # Dynamic symbol filtering based on real-time market data
         qualified_symbols = []
+
+        # Get current tickers
+        tickers = await self.client.get_tickers()
+        ticker_map = {}
+        for t in tickers:
+            if t.symbol.endswith("-USDT"):
+                sym = t.symbol.replace("-USDT", "")
+                ticker_map[sym] = t
+
         for sym in self.symbols_cache:
             if sym in holdings:
                 continue  # Already in portfolio
@@ -1532,39 +1487,47 @@ class IBISTrueAgent:
                 # Enhanced quality filtering - only select high-quality symbols
                 regime = self.state.get("market_regime", "NORMAL")
 
-                # Strict quality standards
+                # Simple but effective quality criteria
                 quality_score = 0
 
-                # Volume requirement - minimum liquidity (use volume_24h, not vol_24h)
-                if volume_24h >= min_liquidity * 1.5:
+                # Volume requirement - minimum liquidity
+                if volume_24h >= min_liquidity * 3:
+                    quality_score += 40
+                elif volume_24h >= min_liquidity * 2:
                     quality_score += 30
-                elif volume_24h >= min_liquidity * 1.0:
+                elif volume_24h >= min_liquidity * 1.5:
                     quality_score += 20
+                elif volume_24h >= min_liquidity * 1.0:
+                    quality_score += 15
                 elif volume_24h >= min_liquidity * 0.8:
                     quality_score += 10
                 else:
-                    continue  # Skip low volume symbols
+                    continue  # Skip very low volume symbols
 
-                # Volatility requirement - too low or too high is bad
+                # Volatility requirement - accept reasonable ranges
                 if 0.03 < volatility < 0.15:
-                    quality_score += 30
-                elif 0.02 < volatility <= 0.03 or 0.15 <= volatility < 0.20:
-                    quality_score += 20
-                elif volatility <= 0.02 or volatility >= 0.20:
-                    continue  # Skip too stable or too volatile
-
-                # Momentum requirement
-                if abs(change_24h) > 5.0:
-                    quality_score += 40
-                elif abs(change_24h) > 3.0:
-                    quality_score += 30
-                elif abs(change_24h) > 2.0:
-                    quality_score += 20
+                    quality_score += 35
+                elif 0.02 < volatility <= 0.03 or 0.15 <= volatility < 0.25:
+                    quality_score += 25
+                elif 0.01 < volatility <= 0.02 or 0.25 <= volatility < 0.35:
+                    quality_score += 15
                 else:
-                    continue  # Skip low momentum
+                    continue  # Skip extremely stable or volatile
 
-                # Only include high-quality symbols
-                if quality_score >= 70:
+                # Momentum requirement - accept wider range
+                if abs(change_24h) > 8.0:
+                    quality_score += 45
+                elif abs(change_24h) > 5.0:
+                    quality_score += 35
+                elif abs(change_24h) > 3.0:
+                    quality_score += 25
+                elif abs(change_24h) > 1.5:
+                    quality_score += 15
+                else:
+                    continue  # Skip very low momentum
+
+                # Include symbols with reasonable quality
+                if quality_score >= 35:
                     qualified_symbols.append(sym)
 
             except Exception as e:
@@ -1624,20 +1587,6 @@ class IBISTrueAgent:
 
         # Pre-fetch Fear & Greed index once per cycle
         fg_data = None
-        try:
-            fg_data = await self.free_intel.get_fear_greed_index()
-            fg_value = fg_data.get("value", "N/A")
-            fg_class = fg_data.get("value_classification", "N/A")
-            fg_source = fg_data.get("source", "unknown")
-            fg_score = fg_data.get("score", 50)
-            self.log_event(
-                f"   📊 Fear & Greed: {fg_value} ({fg_class}) | source: {fg_source} | score: {fg_score}"
-            )
-        except Exception as e:
-            self.log_event(f"   ⚠️ Fear & Greed fetch failed: {e}")
-            fg_data = {"value": 50, "score": 50}
-            fg_value = 50
-            fg_score = 50
 
         async def analyze_with_limit(sym):
             try:
@@ -2642,13 +2591,13 @@ class IBISTrueAgent:
 
         # Dynamic position percentage based on score
         if opportunity_score >= 80:
-            position_pct = 0.50  # 50% for god-tier
+            position_pct = 0.30  # 30% for god-tier
         elif opportunity_score >= 70:
-            position_pct = 0.40  # 40% for high confidence
+            position_pct = 0.25  # 25% for high confidence
         elif opportunity_score >= 60:
-            position_pct = 0.30  # 30% for good setups
+            position_pct = 0.20  # 20% for good setups
         else:
-            position_pct = 0.20  # 20% for standard
+            position_pct = 0.15  # 15% for standard
 
         vol_adjustment = 1.0 / (1 + volatility)
         position_size = available * position_pct * vol_adjustment
@@ -3159,16 +3108,16 @@ class IBISTrueAgent:
         base_sl = TRADING.RISK.STOP_LOSS_PCT  # 5%
 
         mode_configs = {
-            "TRENDING": {"target": base_tp, "stop": base_sl, "conf": 30},
-            "DEFENSIVE": {"target": base_tp, "stop": base_sl, "conf": 25},
-            "CAUTIOUS": {"target": base_tp, "stop": base_sl, "conf": 30},
-            "MICRO_HUNTER": {"target": base_tp, "stop": base_sl, "conf": 25},
-            "PATIENT": {"target": base_tp, "stop": base_sl, "conf": 35},
-            "OPTIMISTIC": {"target": base_tp, "stop": base_sl, "conf": 30},
-            "AGGRESSIVE": {"target": base_tp, "stop": base_sl, "conf": 25},
-            "CONFIDENT": {"target": base_tp, "stop": base_sl, "conf": 25},
-            "HYPER": {"target": base_tp, "stop": base_sl, "conf": 20},
-            "HYPER_INTELLIGENT": {"target": base_tp, "stop": base_sl, "conf": 25},
+            "TRENDING": {"target": base_tp, "stop": base_sl, "conf": 70},
+            "DEFENSIVE": {"target": base_tp, "stop": base_sl, "conf": 80},
+            "CAUTIOUS": {"target": base_tp, "stop": base_sl, "conf": 75},
+            "MICRO_HUNTER": {"target": base_tp, "stop": base_sl, "conf": 70},
+            "PATIENT": {"target": base_tp, "stop": base_sl, "conf": 85},
+            "OPTIMISTIC": {"target": base_tp, "stop": base_sl, "conf": 70},
+            "AGGRESSIVE": {"target": base_tp, "stop": base_sl, "conf": 65},
+            "CONFIDENT": {"target": base_tp, "stop": base_sl, "conf": 80},
+            "HYPER": {"target": base_tp, "stop": base_sl, "conf": 70},
+            "HYPER_INTELLIGENT": {"target": base_tp, "stop": base_sl, "conf": 70},
             "OBSERVING": {"target": 0, "stop": 0, "conf": 100},
         }
 
@@ -3423,16 +3372,52 @@ class IBISTrueAgent:
         opportunities = []
         held = set(self.state["positions"].keys())
 
-        sorted_opps = sorted(market_intel.items(), key=lambda x: x[1]["score"], reverse=True)
+        # 🎯 ENHANCED QUALITY SORTING: Prioritize by score + volume + volatility
+        sorted_opps = sorted(
+            market_intel.items(),
+            key=lambda x: (
+                x[1]["score"],  # Primary: Score
+                x[1].get("volume_24h", 0) / 1e6,  # Secondary: Volume (millions)
+                -abs(x[1].get("volatility", 0)),  # Tertiary: Lower volatility (more stable)
+                x[1].get("change_24h", 0),  # Quaternary: Positive momentum
+            ),
+            reverse=True,
+        )
 
         regime = self.state.get("market_regime", "NORMAL")
-        min_threshold = self.config.get("min_score", 70)  # Adaptive - uses strategy config
+        min_threshold = self.config.get(
+            "min_score", 70
+        )  # More aggressive threshold for opportunities
+        log_event(f"   🎯 Filtering with MIN_SCORE: {min_threshold:.1f}")
 
+        # 🎯 STRICT QUALITY FILTERING
         for sym, intel in sorted_opps:
             if sym in held:
                 continue
 
             score = intel["score"]  # Base score without artificial boost
+
+            # Reject low quality opportunities early
+            if score < min_threshold:
+                log_event(f"      ❌ REJECTED: {sym} (Score: {score:.1f} < {min_threshold:.1f})")
+                continue
+
+            # Additional quality checks
+            volume = intel.get("volume_24h", 0)
+            volatility = intel.get("volatility", 0.02)
+            momentum = intel.get("momentum_1h", 0)
+
+            if volume < 500000:  # < $500K volume
+                log_event(f"      ❌ REJECTED: {sym} (Low volume: ${volume / 1000:.0f}K)")
+                continue
+
+            if volatility > 0.10:  # > 10% volatility
+                log_event(f"      ❌ REJECTED: {sym} (High volatility: {volatility * 100:.1f}%)")
+                continue
+
+            if momentum < -0.2:  # Negative momentum
+                log_event(f"      ❌ REJECTED: {sym} (Negative momentum: {momentum:.2f})")
+                continue
 
             # AGI-Enhanced Analysis - pass Fear & Greed index
             agi_signal = None
@@ -3477,15 +3462,22 @@ class IBISTrueAgent:
                 if score >= 90:
                     reason = f"GOD TIER! ({diff:+.1f} above threshold) - EXECUTE"
                     agi_action = "STRONG_BUY"
+                # 🎯 QUALITY TIER CLASSIFICATION
+                if score >= 90:
+                    reason = f"⭐ GOD TIER ({diff:+.1f} above threshold) - MAXIMUM EXECUTION"
+                    agi_action = "GOD_BUY"
+                elif score >= 85:
+                    reason = f"🔥 EXCELLENT ({diff:+.1f} above threshold) - HIGH EXECUTION"
+                    agi_action = "EXCELLENT_BUY"
                 elif score >= 80:
-                    reason = f"High confidence ({diff:+.1f} above threshold) - EXECUTE"
+                    reason = f"💎 HIGH CONFIDENCE ({diff:+.1f} above threshold) - MEDIUM EXECUTION"
                     agi_action = "STRONG_BUY"
-                elif score >= 70:
-                    reason = f"Strong setup ({diff:+.1f} above threshold) - EXECUTE"
+                elif score >= 75:
+                    reason = f"📈 STRONG SETUP ({diff:+.1f} above threshold) - STANDARD EXECUTION"
                     agi_action = "BUY"
                 else:
-                    reason = f"Standard ({diff:+.1f} above threshold) - EXECUTE"
-                    agi_action = "BUY"
+                    reason = f"⚠️ LOW QUALITY ({diff:+.1f} above threshold) - MINIMUM EXECUTION"
+                    agi_action = "CAUTIOUS_BUY"
 
                 # 📊 COMPONENTS - What contributed to the score
                 components = []
@@ -3716,6 +3708,12 @@ class IBISTrueAgent:
         print(f"   ║ Mode: {strategy['mode']:<55} ║")
         print(f"   ╚{'═' * 68}╝\n")
 
+        # Check for existing pending order before creating new one
+        buy_orders = self.state.get("capital_awareness", {}).get("buy_orders", {})
+        if symbol in buy_orders:
+            print(f"⚠️ Pending order already exists for {symbol} - skipping duplicate")
+            return None
+
         actual_value = quantity * price
         min_trade_value = TRADING.EXECUTION.MIN_TRADE_VALUE
         if actual_value < min_trade_value:
@@ -3772,13 +3770,24 @@ class IBISTrueAgent:
                     f"      🚀 EXECUTING LIMIT buy for {symbol} @ ${suggested_price:.8f} (${price:.6f} - 0.2%)..."
                 )
 
-            resp = await self.client.create_order(
-                symbol=f"{symbol}-USDT",
-                side="buy",
-                type=order_type,
-                price=suggested_price if order_type == "limit" else 0,
-                size=quantity,
-            )
+            if order_type == "market":
+                # For market buy orders, KuCoin uses funds (USD amount) instead of size (quantity)
+                resp = await self.client.create_order(
+                    symbol=f"{symbol}-USDT",
+                    side="buy",
+                    type=order_type,
+                    price=0,
+                    size=position_value,
+                )
+            else:
+                # For limit orders, use quantity
+                resp = await self.client.create_order(
+                    symbol=f"{symbol}-USDT",
+                    side="buy",
+                    type=order_type,
+                    price=suggested_price,
+                    size=quantity,
+                )
 
             if not resp or not getattr(resp, "order_id", None):
                 self.log_event(f"      ❌ ORDER FAILED for {symbol}: No order ID returned")
@@ -3861,99 +3870,14 @@ class IBISTrueAgent:
             error_msg = str(e)
             print(f"❌ {symbol}: {error_msg}")
 
-            if "Balance insufficient" in error_msg:
-                print(f"   → Refreshing balance and retrying...")
-                try:
-                    balances = await self.client.get_all_balances()
-                    actual_usdt = float(balances.get("USDT", {}).get("available", 0))
-                    order_cost = quantity * price
-                    if actual_usdt >= order_cost:
-                        await asyncio.sleep(1)
-                        await self.client.create_order(
-                            symbol=f"{symbol}-USDT",
-                            side="buy",
-                            type="limit",
-                            price=price,
-                            size=quantity,
-                        )
-                        order_info = {
-                            "order_id": f"retry_{symbol}_{int(time.time())}",
-                            "symbol": symbol,
-                            "quantity": quantity,
-                            "price": price,
-                            "order_type": "limit",
-                            "status": "pending",
-                            "timestamp": datetime.now().isoformat(),
-                            "tp": tp,
-                            "sl": sl,
-                            "mode": strategy["mode"],
-                            "regime": strategy["regime"],
-                            "opportunity_score": opportunity.get("adjusted_score", score),
-                        }
-                    self.state["capital_awareness"]["buy_orders"][symbol] = order_info
-                    self.state["daily"]["orders_placed"] += 1
-                    print(f"\n📝 PENDING ORDER (retry): {symbol} {quantity:.4f} @ ${price:.4f}")
-                    self._save_state()
-                    return None
-                except Exception as e2:
-                    print(f"   → Retry failed: {e2}")
+            # Check if order already exists before creating new one
+            buy_orders = self.state.get("capital_awareness", {}).get("buy_orders", {})
+            if symbol in buy_orders:
+                print(f"   ⚠️ Order already exists for {symbol} - skipping duplicate")
+                return None
 
-            elif "Order size increment invalid" in error_msg:
-                print(f"   → Adjusting quantity...")
-                try:
-                    sym_data = await self.client.get_symbol(f"{symbol}-USDT")
-                    if sym_data:
-                        base_increment = float(sym_data.get("baseIncrement", 0.001))
-                        base_min_size = float(sym_data.get("baseMinSize", 1.0))
-
-                        self.symbol_rules[symbol] = {
-                            "baseMinSize": base_min_size,
-                            "baseIncrement": base_increment,
-                        }
-
-                        quantity = round_down_to_increment(quantity, base_increment)
-                        if quantity < base_min_size:
-                            quantity = base_min_size
-                        if quantity * price >= 5:
-                            resp = await self.client.create_order(
-                                symbol=f"{symbol}-USDT",
-                                side="buy",
-                                type="limit",
-                                price=price,
-                                size=quantity,
-                            )
-                            if not resp or not getattr(resp, "order_id", None):
-                                self.log_event(f"      ❌ ORDER FAILED (adjusted) for {symbol}")
-                                return None
-                            order_info = {
-                                "order_id": getattr(resp, "order_id", "unknown")
-                                if hasattr(resp, "order_id")
-                                else "unknown",
-                                "symbol": symbol,
-                                "quantity": quantity,
-                                "price": price,
-                                "order_type": "limit",
-                                "status": "pending",
-                                "timestamp": datetime.now().isoformat(),
-                                "tp": tp,
-                                "sl": sl,
-                                "mode": strategy["mode"],
-                                "regime": strategy["regime"],
-                                "opportunity_score": opportunity.get("adjusted_score", score),
-                            }
-                            self.state["capital_awareness"]["buy_orders"][symbol] = order_info
-                            self.state["daily"]["orders_placed"] += 1
-                            print(
-                                f"\n📝 PENDING ORDER (adjusted): {symbol} {quantity:.4f} @ ${price:.4f}"
-                            )
-                            self._save_state()
-                            return None
-                except Exception as e2:
-                    print(f"   → Adjustment failed: {e2}")
-
+            # Simple error handling without complex retry logic for now
             return None
-
-        rules = self.symbol_rules.get(symbol, {})
         base_increment = float(rules.get("baseIncrement", 0.000001))
         base_min_size = float(rules.get("baseMinSize", 0.001))
 
@@ -5495,12 +5419,16 @@ class IBISTrueAgent:
                     self.log_event("   ⚡ Quick market scan...")
                     try:
                         tickers = await self.client.get_tickers()
+                        min_score = self.config.get("min_score", 70)  # Use strategy threshold
                         for t in tickers[:20]:  # Top 20 by volume
                             sym = t.symbol.replace("-USDT", "")
                             if t.symbol.endswith("-USDT"):
                                 change = float(getattr(t, "change_24h", 0) or 0)
-                                vol = float(getattr(t, "vol_24h", 0) or 0)
+                                vol = float(getattr(t, "volume_24h", 0) or 0)
                                 score = 50 + (abs(change) * 5)  # Simple score based on momentum
+                                # Skip symbols with scores below threshold
+                                if score < min_score:
+                                    continue
                                 self.market_intel[sym] = {
                                     "symbol": sym,
                                     "price": float(t.price),
@@ -5510,7 +5438,9 @@ class IBISTrueAgent:
                                     "volatility": 0.02,
                                     "momentum_1h": change,
                                 }
-                        self.log_event(f"   ✅ Scanned {len(self.market_intel)} symbols")
+                        self.log_event(
+                            f"   ✅ Scanned {len(self.market_intel)} symbols (score ≥ {min_score})"
+                        )
                     except Exception as e:
                         self.log_event(f"   ⚠️ Scan failed: {e}")
 
@@ -5721,6 +5651,14 @@ class IBISTrueAgent:
                                 f"   🛑 Insufficient capital (${strategy['available']:.2f} < $5.00 minimum)"
                             )
                             break
+
+                        # 🎯 SCORE CHECK: Only execute if opportunity meets minimum score threshold
+                        min_score = self.config.get("min_score", 70)
+                        if opportunity["score"] < min_score:
+                            self.log_event(
+                                f"   ❌ SKIPPING: {opportunity['symbol']} (Score: {opportunity['score']:.1f} < {min_score:.1f} threshold)"
+                            )
+                            continue
 
                         self.log_event(f"   🚀 HYPER-TRADE START: {opportunity['symbol']}")
                         await self.open_position(opportunity, strategy)

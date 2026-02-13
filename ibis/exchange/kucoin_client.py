@@ -713,7 +713,8 @@ class KuCoinClient:
         # Market Sell orders use 'size' (Base quantity)
         if type.lower() == "market":
             if side.lower() == "buy":
-                order_data["funds"] = str(size)
+                # Round funds to 2 decimal places (USD)
+                order_data["funds"] = "{:.2f}".format(size)
             else:
                 order_data["size"] = str(size)
         else:
