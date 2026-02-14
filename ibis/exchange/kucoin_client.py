@@ -204,7 +204,7 @@ class TradeOrder:
         else:
             fee = abs(float(raw_fee)) if raw_fee else 0.0
 
-        filled_size_str = data.get("filledSize", "0")
+        filled_size_str = data.get("dealSize", "0")
         if isinstance(filled_size_str, str):
             try:
                 filled_size = float(filled_size_str)
@@ -222,8 +222,12 @@ class TradeOrder:
         else:
             deal_size = float(deal_size_str) if deal_size_str else 0.0
 
-        avg_price = deal_size / max(filled_size, 0.001) if filled_size > 0 else 0.0
+        deal_funds = float(data.get("dealFunds", "0"))
+        avg_price = (
+            deal_funds / max(filled_size, 0.001) if filled_size > 0 and deal_funds > 0 else 0.0
+        )
 
+        status = "ACTIVE" if data.get("isActive", True) else "DONE"
         return cls(
             order_id=data.get("orderId", ""),
             symbol=symbol,
@@ -231,7 +235,7 @@ class TradeOrder:
             type=data.get("type", ""),
             price=float(data.get("price", 0)) if data.get("price") else 0.0,
             size=float(data.get("size", 0)) if data.get("size") else 0.0,
-            status=data.get("status", ""),
+            status=status,
             filled_size=filled_size,
             avg_price=avg_price,
             created_at=int(data.get("createdAt", 0)),

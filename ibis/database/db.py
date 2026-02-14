@@ -147,9 +147,7 @@ class IbisDB:
 
     def get_state(self, key, default=None):
         with self.get_conn() as conn:
-            row = conn.execute(
-                "SELECT value FROM system_state WHERE key = ?", (key,)
-            ).fetchone()
+            row = conn.execute("SELECT value FROM system_state WHERE key = ?", (key,)).fetchone()
             return row[0] if row else default
 
     def close_position(self, symbol, exit_price, reason="CLOSED", actual_fee=None):
@@ -176,7 +174,7 @@ class IbisDB:
             if row:
                 quantity = row["quantity"]
                 entry_price = row["entry_price"]
-                entry_fee = row.get("entry_fee", 0) if row else 0
+                entry_fee = row["entry_fee"] if row and "entry_fee" in row else 0
 
                 entry_val = quantity * entry_price
                 exit_val = quantity * exit_price
@@ -217,9 +215,7 @@ class IbisDB:
 
     def get_open_positions(self):
         with self.get_conn() as conn:
-            return [
-                dict(row) for row in conn.execute("SELECT * FROM positions").fetchall()
-            ]
+            return [dict(row) for row in conn.execute("SELECT * FROM positions").fetchall()]
 
     def get_trades(self, limit=100):
         with self.get_conn() as conn:
@@ -268,9 +264,7 @@ class IbisDB:
                 "fees_used": fees_used,
                 "max_allowed": max_daily_fees,
                 "remaining": max_daily_fees - fees_used,
-                "usage_pct": (fees_used / max_daily_fees * 100)
-                if max_daily_fees > 0
-                else 0,
+                "usage_pct": (fees_used / max_daily_fees * 100) if max_daily_fees > 0 else 0,
                 "trades_today": trades_count,
                 "budget_exceeded": fees_used > max_daily_fees,
             }

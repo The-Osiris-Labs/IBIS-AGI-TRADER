@@ -83,9 +83,7 @@ class DataBuffer:
         if len(tickers) < 2:
             return 0
         prices = [t.price for t in tickers]
-        returns = [
-            (prices[i] - prices[i - 1]) / prices[i - 1] for i in range(1, len(prices))
-        ]
+        returns = [(prices[i] - prices[i - 1]) / prices[i - 1] for i in range(1, len(prices))]
         return sum(abs(r) for r in returns) / len(returns) * 100
 
 
@@ -97,7 +95,7 @@ class DataFeed:
         update_interval: float = 1.0,
     ):
         self.client = client
-        self.symbols = symbols or ["BTC-USDT", "ETH-USDT", "SOL-USDT"]
+        self.symbols = symbols or []
         self.update_interval = update_interval
         self.buffers: Dict[str, DataBuffer] = {}
         self.running = False
@@ -164,8 +162,7 @@ class DataFeed:
             bid_ask_spread=spread,
             bid_volume=bid_volume,
             ask_volume=ask_volume,
-            order_imbalance=(bid_volume - ask_volume)
-            / (bid_volume + ask_volume + 0.001),
+            order_imbalance=(bid_volume - ask_volume) / (bid_volume + ask_volume + 0.001),
             vwap=latest.price * 1.001,
         )
 
@@ -186,9 +183,7 @@ class DataFeed:
             for c in candles
         ]
 
-    async def wait_for_candles(
-        self, symbol: str, count: int = 10, timeout: float = 30.0
-    ) -> bool:
+    async def wait_for_candles(self, symbol: str, count: int = 10, timeout: float = 30.0) -> bool:
         start_time = time.time()
         while len(self.buffers[symbol].candles) < count:
             if time.time() - start_time > timeout:

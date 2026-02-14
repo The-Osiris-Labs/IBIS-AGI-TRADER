@@ -210,21 +210,21 @@ class EnhancedExecutionEngine:
             logger.warning(f"⚠️ Quantity below minimum for {symbol}")
             return False
 
-        for attempt in range(self.max_retry_attempts):
+         for attempt in range(self.max_retry_attempts):
             try:
                 logger.info(
                     f"🚀 BUY {symbol}: ${size_usd:.2f} ({quantity:.8f}) [Attempt {attempt + 1}]"
                 )
-                 order = await self.client.create_order(
-                        symbol=symbol, side="buy", type="market", price=0, size=quantity
-                    )
+                order = await self.client.create_order(
+                    symbol=symbol, side="buy", type="market", price=0, size=quantity
+                )
 
-                    # Track active order
-                    self.active_orders[order["orderId"]] = now
+                # Track active order
+                self.active_orders[order["orderId"]] = now
 
-                    self.db.update_position(
-                        symbol, quantity, price, agi_score=50, agi_insight="IBIS v2 Entry"
-                    )
+                self.db.update_position(
+                    symbol, quantity, price, agi_score=50, agi_insight="IBIS v2 Entry"
+                )
                 logger.info(f"✅ BUY SUCCESS: {symbol}")
                 return True
 

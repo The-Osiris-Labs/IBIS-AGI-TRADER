@@ -52,12 +52,12 @@ class CriticalThresholds:
 class ScoreThresholds:
     """Opportunity scoring thresholds"""
 
-    GOD_TIER: int = 90  # Exceptional
-    HIGH_CONFIDENCE: int = 85  # High confidence
-    STRONG_SETUP: int = 80  # Strong setup
-    GOOD_SETUP: int = 75  # Good opportunity
-    STANDARD: int = 70  # Standard opportunity
-    MIN_THRESHOLD: int = 65  # Minimum to consider
+    GOD_TIER: int = 95  # Exceptional (God tier)
+    HIGH_CONFIDENCE: int = 90  # High confidence (Excellent)
+    STRONG_SETUP: int = 85  # Strong setup (High quality)
+    GOOD_SETUP: int = 80  # Good opportunity (Quality)
+    STANDARD: int = 75  # Standard opportunity (Baseline)
+    MIN_THRESHOLD: int = 70  # Minimum to consider (Conservative)
     MARKET_PRIMED_HIGH_COUNT: int = 5  # Number of high-scoring symbols for "primed" mode
     MARKET_PRIMED_AVG_SCORE: int = 70  # Lowered to be more aggressive
 
@@ -289,11 +289,12 @@ class ExecutionConfig:
 class MultiplierConfig:
     """Position sizing multipliers based on score thresholds"""
 
-    GOD_TIER_MULTIPLIER: float = 2.0  # Score >= 95
-    HIGH_CONFIDENCE_MULTIPLIER: float = 1.8  # Score >= 90
-    STRONG_SETUP_MULTIPLIER: float = 1.5  # Score >= 85
-    GOOD_SETUP_MULTIPLIER: float = 1.3  # Score >= 80
-    STANDARD_MULTIPLIER: float = 1.1  # Score < 80
+    GOD_TIER_MULTIPLIER: float = 5.0  # Score >= 95
+    HIGH_CONFIDENCE_MULTIPLIER: float = 4.0  # Score >= 90
+    STRONG_SETUP_MULTIPLIER: float = 3.0  # Score >= 85
+    GOOD_SETUP_MULTIPLIER: float = 2.0  # Score >= 80
+    STANDARD_MULTIPLIER: float = 1.5  # Score >= 75
+    CONSERVATIVE_MULTIPLIER: float = 1.0  # Score >= 70
 
     REGIME_TRENDING_MULTIPLIER: float = 1.2  # Bull trending market
     REGIME_FLAT_MULTIPLIER: float = 1.0  # Flat/range-bound market

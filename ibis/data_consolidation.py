@@ -14,12 +14,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 
-STATE_FILE = (
-    "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true_state.json"
-)
-MEMORY_FILE = (
-    "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true_memory.json"
-)
+STATE_FILE = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true_state.json"
+MEMORY_FILE = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true_memory.json"
 
 
 def load_state() -> Dict:
@@ -169,6 +165,32 @@ def merge_daily_stats(state_daily: Dict, db_trades: List[Dict]) -> Dict:
     return state_daily
 
 
+def sync_state_positions_to_db(state_positions: Dict, db):
+    """
+    Sync positions from JSON state to SQLite DB.
+    """
+    for symbol, pos in state_positions.items():
+        db.update_position(
+            symbol=f"{symbol}-USDT",
+            quantity=pos.get("quantity", 0),
+            price=pos.get("buy_price", 0),
+            stop_loss=pos.get("sl"),
+            take_profit=pos.get("tp"),
+            agi_score=pos.get("opportunity_score", 50),
+            agi_insight="AGI Confirmed",
+            entry_fee=0,
+            limit_sell_order_id=None,
+            limit_sell_price=pos.get("tp"),
+        )
+
+    # Remove positions from DB that are not in state file
+    db_positions = db.get_open_positions()
+    for db_pos in db_positions:
+        symbol = db_pos["symbol"].replace("-USDT", "")
+        if symbol not in state_positions:
+            db.close_position(db_pos["symbol"], db_pos["current_price"], reason="NOT_IN_STATE")
+
+
 def run_full_sync(db) -> bool:
     """
     Run full bidirectional sync between DB and JSON files.
@@ -183,6 +205,7 @@ def run_full_sync(db) -> bool:
 
         memory = sync_db_trades_to_memory(db_trades)
         state = sync_db_positions_to_state(db_positions)
+        sync_state_positions_to_db(state.get("positions", {}), db)
         state["daily"] = merge_daily_stats(state.get("daily", {}), db_trades)
         state["updated"] = datetime.now().isoformat()
 
@@ -219,18 +242,14 @@ def cleanup_dust_positions(db=None, client=None, threshold: float = 1.0) -> Dict
         value = qty * price
 
         if value < threshold:
-            cleaned.append(
-                {"symbol": sym, "quantity": qty, "value": value, "reason": "dust"}
-            )
+            cleaned.append({"symbol": sym, "quantity": qty, "value": value, "reason": "dust"})
             del positions[sym]
 
     if cleaned:
         state["positions"] = positions
         state["updated"] = datetime.now().isoformat()
         save_state(state)
-        print(
-            f"🧹 Cleaned {len(cleaned)} dust positions: {[p['symbol'] for p in cleaned]}"
-        )
+        print(f"🧹 Cleaned {len(cleaned)} dust positions: {[p['symbol'] for p in cleaned]}")
 
     return {"cleaned": cleaned, "count": len(cleaned)}
 

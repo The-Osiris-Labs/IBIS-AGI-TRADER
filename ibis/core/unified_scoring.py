@@ -553,21 +553,23 @@ class UnifiedScorer:
         adjusted_score = score * (confidence / 100)
 
         if adjusted_score >= 95:
-            return {"tier": "GOD_TIER", "multiplier": 4.0, "label": "Exceptional"}
+            return {"tier": "GOD_TIER", "multiplier": 5.0, "label": "GOD TIER"}
         elif adjusted_score >= 90:
             return {
                 "tier": "HIGH_CONFIDENCE",
-                "multiplier": 3.0,
-                "label": "High Confidence",
+                "multiplier": 4.0,
+                "label": "HIGH CONFIDENCE",
             }
         elif adjusted_score >= 85:
-            return {"tier": "STRONG_SETUP", "multiplier": 2.0, "label": "Strong Buy"}
+            return {"tier": "STRONG_SETUP", "multiplier": 3.0, "label": "STRONG SETUP"}
         elif adjusted_score >= 80:
-            return {"tier": "GOOD_SETUP", "multiplier": 1.5, "label": "Good Buy"}
+            return {"tier": "GOOD_SETUP", "multiplier": 2.0, "label": "GOOD SETUP"}
+        elif adjusted_score >= 75:
+            return {"tier": "STANDARD", "multiplier": 1.5, "label": "STANDARD"}
         elif adjusted_score >= 70:
-            return {"tier": "STANDARD", "multiplier": 1.0, "label": "Standard"}
+            return {"tier": "CONSERVATIVE", "multiplier": 1.0, "label": "CONSERVATIVE"}
         else:
-            return {"tier": "BELOW_THRESHOLD", "multiplier": 0.5, "label": "Weak"}
+            return {"tier": "BELOW_THRESHOLD", "multiplier": 0.5, "label": "WEAK"}
 
 
 # Global instance
