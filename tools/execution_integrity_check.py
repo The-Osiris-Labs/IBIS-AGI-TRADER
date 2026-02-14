@@ -92,7 +92,8 @@ def main() -> int:
 
     available = _num(cap.get("usdt_available", 0), 0)
     total_assets = _num(cap.get("total_assets", 0), 0)
-    sell_orders_value = _num(cap.get("sell_orders_value", 0), 0)
+    sell_orders_value = _num(cap.get("holdings_in_sell_orders", 0), 0)
+    real_trading_capital = _num(cap.get("real_trading_capital", available), available)
 
     info.append(f"positions={len(positions)}")
     info.append(f"buy_orders={len(buy_orders)}")
@@ -101,6 +102,12 @@ def main() -> int:
         + str(sum(len(v) for v in sell_orders.values() if isinstance(v, list)))
     )
     info.append(f"available_usdt={available:.4f}")
+    info.append(f"real_trading_capital={real_trading_capital:.4f}")
+
+    if abs(real_trading_capital - available) > 0.25:
+        warnings.append(
+            f"capital parity drift: real_trading_capital={real_trading_capital:.2f}, available={available:.2f}"
+        )
 
     if available < args.min_trade:
         warnings.append(

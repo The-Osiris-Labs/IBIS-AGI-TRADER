@@ -109,6 +109,7 @@ def main() -> int:
 
     state_symbols = {_norm(s) for s in positions.keys()}
     tracked_sell_symbols = {_norm(s) for s in sell_orders.keys()}
+    tracked_buy_symbols = {_norm(s) for s in buy_orders.keys()}
     db_symbols = _db_symbols()
 
     status = 'ok'
@@ -121,8 +122,10 @@ def main() -> int:
     live = None
     try:
         live = asyncio.run(_live_snapshot())
-        only_state_live = sorted(state_symbols - live['live_symbols'])
-        only_live_state = sorted(live['live_symbols'] - state_symbols)
+        only_state_live_raw = state_symbols - live['live_symbols']
+        only_live_state_raw = live['live_symbols'] - state_symbols
+        only_state_live = sorted(only_state_live_raw - tracked_sell_symbols - tracked_buy_symbols)
+        only_live_state = sorted(only_live_state_raw - tracked_buy_symbols - tracked_sell_symbols)
 
         if only_state_live:
             status = 'degraded'
@@ -161,8 +164,8 @@ def main() -> int:
                 'live_positions': len(live['live_symbols']),
                 'live_open_sell_symbols': live['live_open_sell_count'],
                 'stale_live_open_sells_180s': live['stale_live_open_sells_180s'],
-                'state_only_vs_live': sorted(state_symbols - live['live_symbols'])[:10],
-                'live_only_vs_state': sorted(live['live_symbols'] - state_symbols)[:10],
+                'state_only_vs_live': only_state_live[:10],
+                'live_only_vs_state': only_live_state[:10],
                 'live_open_sells_not_tracked': sorted(live['live_open_sell_symbols'] - tracked_sell_symbols)[:10],
             }
         )

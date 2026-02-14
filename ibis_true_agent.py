@@ -152,6 +152,7 @@ class IBISTrueAgent:
         self.cross_exchange = CrossExchangeMonitor()
         self.symbol_rules = {}
         self._close_lock = None
+        self._closing_symbols = set()
 
         self.state_file = (
             "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true_state.json"
@@ -241,7 +242,20 @@ class IBISTrueAgent:
         self._load_memory = _load_memory
         self._save_memory = _save_memory
         self.agent_memory = _load_memory()
+        self.agent_memory.setdefault("fill_latency_by_symbol", {})
+        self.agent_memory.setdefault("fill_latency_recent", [])
+        self.agent_memory.setdefault("recycle_close_ts", {})
+        self.agent_memory.setdefault("buy_reentry_cooldown_until", {})
+        self.agent_memory.setdefault("stale_buy_cancel_counts", {})
         self._last_db_sync_ts = 0.0
+        self._symbol_fee_profile = {}
+        self._symbol_fee_counts = {}
+        self._last_fee_profile_refresh_ts = 0.0
+        self._last_recycle_close_ts = self.agent_memory.get("recycle_close_ts", {}) or {}
+        if not isinstance(self._last_recycle_close_ts, dict):
+            self._last_recycle_close_ts = {}
+            self.agent_memory["recycle_close_ts"] = self._last_recycle_close_ts
+        self._recycle_closes_this_cycle = 0
 
         def _save_state():
             try:
@@ -262,7 +276,7 @@ class IBISTrueAgent:
 
                 # Keep SQLite view fresh for monitors and reconciliations.
                 now_ts = time.time()
-                if now_ts - self._last_db_sync_ts >= 15:
+                if now_ts - self._last_db_sync_ts >= 5:
                     _sync_state_positions_to_db()
                     self._last_db_sync_ts = now_ts
             except Exception as e:
@@ -315,15 +329,47 @@ class IBISTrueAgent:
             "enable_compounding": True,
             # Execution throughput controls (non-strategy layer)
             "maker_first_execution": True,
-            "stale_sell_reprice_seconds": 120,
-            "stale_sell_hard_seconds": 300,
-            "stale_reprice_cooldown_seconds": 90,
+            "stale_buy_cancel_seconds": 60,
+            "stale_buy_cancel_max_per_cycle": 6,
+            "stale_sell_reprice_seconds": 60,
+            "stale_sell_hard_seconds": 180,
+            "stale_reprice_cooldown_seconds": 45,
             "stale_reprice_max_per_cycle": 2,
             "market_entry_score_threshold": 90,
             "market_entry_max_spread": 0.0035,
             "zombie_max_hold_minutes": 30,
             "zombie_stagnation_band_pct": 0.002,
             "zombie_max_evictions_per_cycle": 1,
+            "recycle_capital_trigger_usdt": TRADING.POSITION.MIN_CAPITAL_PER_TRADE,
+            "recycle_min_projected_profit_usdt": 0.03,
+            "recycle_min_projected_pnl_pct": 0.003,
+            "reconcile_cycle_interval": 10,
+            "fee_profile_history_limit": 400,
+            "execution_fee_guard_enabled": True,
+            "execution_fee_max_per_side": 0.0025,
+            "execution_fee_override_score": 90,
+            "execution_fee_min_symbol_fills": 4,
+            "execution_fee_blocklist_max_symbols": 30,
+            "latency_guard_enabled": True,
+            "latency_guard_max_avg_fill_seconds": 75,
+            "latency_guard_min_samples": 3,
+            "latency_guard_override_score": 90,
+            "max_open_buy_orders": 8,
+            "stale_buy_pressure_relief_seconds": 45,
+            "stale_buy_pressure_trigger": 4,
+            "stale_buy_reentry_cooldown_seconds": 75,
+            "stale_buy_reentry_cooldown_max_seconds": 240,
+            "entry_admission_enabled": True,
+            "entry_admission_min_edge": 45.0,
+            "entry_admission_fee_penalty_points": 4000.0,
+            "entry_admission_latency_penalty_cap": 10.0,
+            "entry_admission_queue_penalty_cap": 6.0,
+            "entry_admission_override_score": 90.0,
+            "recycle_allow_loss": False,
+            "recycle_min_pnl_pct": 0.003,
+            "recycle_max_closes_per_cycle": 1,
+            "recycle_symbol_cooldown_seconds": 300,
+            "recycle_min_hold_seconds": 120,
         }
 
         # Load saved state first, then initialize defaults
@@ -393,6 +439,11 @@ class IBISTrueAgent:
                 "orders_placed": int(saved_daily.get("orders_placed", 0)),
                 "orders_filled": int(saved_daily.get("orders_filled", 0)),
                 "orders_cancelled": int(saved_daily.get("orders_cancelled", 0)),
+                "stale_buy_cancels": int(saved_daily.get("stale_buy_cancels", 0)),
+                "avg_buy_fill_latency_seconds": float(
+                    saved_daily.get("avg_buy_fill_latency_seconds", 0.0)
+                ),
+                "buy_fill_samples": int(saved_daily.get("buy_fill_samples", 0)),
                 "avg_fill_rate": float(saved_daily.get("avg_fill_rate", 0.0)),
             }
 
@@ -583,6 +634,9 @@ class IBISTrueAgent:
             "orders_placed": 0,
             "orders_filled": 0,
             "orders_cancelled": 0,
+            "stale_buy_cancels": 0,
+            "avg_buy_fill_latency_seconds": 0.0,
+            "buy_fill_samples": 0,
             "avg_fill_rate": 0.0,
         }
 
@@ -907,7 +961,9 @@ class IBISTrueAgent:
 
             total_assets = usdt_total + holdings_value
 
-            real_trading_capital = usdt_available - buy_orders_value
+            # `usdt_available` is already net of exchange-held funds for active buy orders.
+            # Do not subtract buy orders again, otherwise deployable capital is understated.
+            real_trading_capital = usdt_available
 
             daily_fees = self.state.get("daily", {}).get("fees", 0)
 
@@ -961,6 +1017,324 @@ class IBISTrueAgent:
         except Exception as e:
             self.log_event(f"   ⚠️ Capital awareness update failed: {e}")
             return self.state.get("capital_awareness", {})
+
+    def _extract_order_side_and_funds(self, order) -> tuple[str, float]:
+        """Normalize side/funds extraction for dict and TradeOrder objects."""
+        if hasattr(order, "symbol") and not isinstance(order, dict):
+            side = str(getattr(order, "side", "")).lower().strip()
+            price = float(getattr(order, "price", 0) or 0)
+            size = float(getattr(order, "size", 0) or 0)
+            funds = float(getattr(order, "funds", 0) or 0) or (size * price)
+            return side, funds
+
+        side = str(order.get("side", "")).lower().strip()
+        price = float(order.get("price", 0) or 0)
+        size = float(order.get("size", 0) or 0)
+        try:
+            funds = float(order.get("funds", 0) or 0)
+        except (TypeError, ValueError):
+            funds = 0.0
+        if funds <= 0 and price > 0 and size > 0:
+            funds = size * price
+        return side, funds
+
+    async def _refresh_strategy_available(self, strategy: Dict, context: str = "") -> float:
+        """Refresh deployable USDT from capital awareness without double-subtraction."""
+        capital = await self.update_capital_awareness()
+        deployable = float(capital.get("real_trading_capital", capital.get("usdt_available", 0)) or 0)
+        strategy["available"] = max(0.0, deployable)
+        if context:
+            self.log_event(f"   💵 Capital refresh ({context}): ${strategy['available']:.2f}")
+        return strategy["available"]
+
+    def _load_symbol_fee_profile(self, force: bool = False) -> Dict[str, float]:
+        """Build rolling fee-rate profile from recent fills: symbol -> fee_rate_per_side."""
+        now_ts = time.time()
+        if (
+            not force
+            and self._symbol_fee_profile
+            and now_ts - self._last_fee_profile_refresh_ts < 60
+        ):
+            return self._symbol_fee_profile
+
+        profile: Dict[str, float] = {}
+        counts: Dict[str, int] = {}
+        history_limit = int(self.config.get("fee_profile_history_limit", 400))
+        trade_history_path = os.path.join(os.path.dirname(self.state_file), "trade_history.json")
+
+        try:
+            with open(trade_history_path, "r") as f:
+                trade_obj = json.load(f)
+            trades = trade_obj.get("trades", []) if isinstance(trade_obj, dict) else []
+            recent = trades[-history_limit:] if history_limit > 0 else trades
+
+            accum: Dict[str, Dict[str, float]] = {}
+            for row in recent:
+                symbol = (
+                    str(row.get("symbol", "")).replace("-USDT", "").replace("-USDC", "").strip()
+                )
+                if not symbol:
+                    continue
+                try:
+                    funds = float(row.get("funds", 0) or 0)
+                    fee = float(row.get("fee", row.get("fees", 0)) or 0)
+                except (TypeError, ValueError):
+                    continue
+                if funds <= 0 or fee < 0:
+                    continue
+                if symbol not in accum:
+                    accum[symbol] = {"fee": 0.0, "funds": 0.0}
+                    counts[symbol] = 0
+                accum[symbol]["fee"] += fee
+                accum[symbol]["funds"] += funds
+                counts[symbol] += 1
+
+            for sym, vals in accum.items():
+                if vals["funds"] > 0:
+                    profile[sym] = vals["fee"] / vals["funds"]
+        except Exception:
+            profile = {}
+            counts = {}
+
+        self._symbol_fee_profile = profile
+        self._symbol_fee_counts = counts
+        self._last_fee_profile_refresh_ts = now_ts
+        return profile
+
+    def _get_execution_fee_blocklist(self) -> set:
+        """Symbols to avoid for execution efficiency based on observed fee pressure."""
+        profile = self._load_symbol_fee_profile()
+        min_fills = int(self.config.get("execution_fee_min_symbol_fills", 4))
+        max_fee = float(self.config.get("execution_fee_max_per_side", 0.0025))
+        cap = int(self.config.get("execution_fee_blocklist_max_symbols", 30))
+        offenders = [
+            (sym, rate)
+            for sym, rate in profile.items()
+            if self._symbol_fee_counts.get(sym, 0) >= min_fills and rate > max_fee
+        ]
+        offenders.sort(key=lambda x: x[1], reverse=True)
+        return {sym for sym, _ in offenders[: max(0, cap)]}
+
+    def _estimate_total_friction_for_symbol(self, symbol: str) -> float:
+        """Estimate total round-trip friction with symbol-specific fee floor."""
+        base = TRADING.get_total_friction()
+        per_side = self._load_symbol_fee_profile().get(symbol, 0.0)
+        if per_side <= 0:
+            return base
+
+        # Use symbol-observed fee pressure as floor while preserving baseline slippage estimate.
+        observed_floor = (2 * per_side) + TRADING.EXCHANGE.ESTIMATED_SLIPPAGE
+        return max(base, observed_floor)
+
+    def _record_fill_latency(self, symbol: str, latency_seconds: float) -> None:
+        """Track buy order fill latency per symbol for execution quality throttling."""
+        if latency_seconds <= 0:
+            return
+        mem = self.agent_memory.setdefault("fill_latency_by_symbol", {})
+        row = mem.get(symbol, {"samples": 0, "avg_seconds": 0.0, "ema_seconds": 0.0, "last_seconds": 0.0})
+        prev_n = int(row.get("samples", 0))
+        prev_avg = float(row.get("avg_seconds", 0.0))
+        prev_ema = float(row.get("ema_seconds", 0.0))
+        n = prev_n + 1
+        avg = ((prev_avg * prev_n) + latency_seconds) / n
+        alpha = 0.35
+        ema = latency_seconds if prev_n == 0 else (alpha * latency_seconds + (1 - alpha) * prev_ema)
+        row.update(
+            {
+                "samples": n,
+                "avg_seconds": avg,
+                "ema_seconds": ema,
+                "last_seconds": latency_seconds,
+                "updated": datetime.now().isoformat(),
+            }
+        )
+        mem[symbol] = row
+
+        recent = self.agent_memory.setdefault("fill_latency_recent", [])
+        recent.append(
+            {
+                "symbol": symbol,
+                "latency_seconds": round(latency_seconds, 3),
+                "ts": datetime.now().isoformat(),
+            }
+        )
+        if len(recent) > 200:
+            del recent[:-200]
+
+    def _get_slow_fill_symbols(self) -> set:
+        """Symbols with repeatedly slow fills that should be throttled for execution quality."""
+        if not self.config.get("latency_guard_enabled", True):
+            return set()
+        max_avg = float(self.config.get("latency_guard_max_avg_fill_seconds", 75))
+        min_samples = int(self.config.get("latency_guard_min_samples", 3))
+        mem = self.agent_memory.get("fill_latency_by_symbol", {}) or {}
+        return {
+            sym
+            for sym, row in mem.items()
+            if int(row.get("samples", 0)) >= min_samples
+            and float(row.get("avg_seconds", 0)) > max_avg
+        }
+
+    def _estimate_entry_edge(self, opportunity: Dict, strategy: Dict) -> float:
+        """Execution-only edge score used to prioritize admission order."""
+        symbol = str(opportunity.get("symbol", ""))
+        score = float(opportunity.get("score", 0))
+        fee_rate = float(self._load_symbol_fee_profile().get(symbol, 0.0) or 0.0)
+        fee_penalty_points = float(self.config.get("entry_admission_fee_penalty_points", 4000.0))
+        fee_penalty = fee_rate * fee_penalty_points
+
+        latency_row = self.agent_memory.get("fill_latency_by_symbol", {}).get(symbol, {}) or {}
+        avg_fill_seconds = float(latency_row.get("avg_seconds", 0.0) or 0.0)
+        latency_penalty_cap = float(self.config.get("entry_admission_latency_penalty_cap", 10.0))
+        latency_penalty = min(latency_penalty_cap, avg_fill_seconds / 10.0)
+
+        pending_buys = len(self.state.get("capital_awareness", {}).get("buy_orders", {}) or {})
+        pending_limit = max(1, int(self.config.get("max_open_buy_orders", 8)))
+        queue_ratio = min(1.0, pending_buys / pending_limit)
+        queue_penalty_cap = float(self.config.get("entry_admission_queue_penalty_cap", 6.0))
+        queue_penalty = queue_ratio * queue_penalty_cap
+
+        spread = float(opportunity.get("spread", 0.0) or 0.0)
+        spread_penalty = min(3.0, spread * 300.0)
+
+        return score - fee_penalty - latency_penalty - queue_penalty - spread_penalty
+
+    def _admission_rank_opportunities(self, opportunities: List[Dict], strategy: Dict) -> List[Dict]:
+        """Sort/filter entry candidates by execution edge while keeping strategy score intact."""
+        if not self.config.get("entry_admission_enabled", True) or not opportunities:
+            return opportunities
+
+        min_edge = float(self.config.get("entry_admission_min_edge", 45.0))
+        override_score = float(self.config.get("entry_admission_override_score", 90.0))
+
+        ranked = []
+        for opp in opportunities:
+            edge = self._estimate_entry_edge(opp, strategy)
+            ranked.append((edge, opp))
+
+        ranked.sort(key=lambda x: (x[0], x[1].get("score", 0)), reverse=True)
+        filtered = []
+        rejected = 0
+        for edge, opp in ranked:
+            score = float(opp.get("score", 0))
+            if edge < min_edge and score < override_score:
+                rejected += 1
+                continue
+            out = dict(opp)
+            out["entry_edge"] = edge
+            filtered.append(out)
+
+        self.log_event(
+            f"   🧭 ADMISSION: kept={len(filtered)}/{len(opportunities)} | rejected={rejected} | min_edge={min_edge:.1f}"
+        )
+        for opp in filtered[:5]:
+            self.log_event(
+                f"      🧭 EDGE {opp.get('symbol')}: edge={opp.get('entry_edge', 0):.2f}, score={opp.get('score', 0):.1f}"
+            )
+        return filtered
+
+    @staticmethod
+    def _is_recycle_reason(reason: str) -> bool:
+        recycle_reasons = {
+            "RECYCLE_CAPITAL",
+            "TAKE_PROFIT_RECYCLE",
+            "ALPHA_RECYCLE",
+            "RECYCLE_PROFIT",
+            "THROUGHPUT_ZOMBIE_PRUNE",
+        }
+        return str(reason) in recycle_reasons
+
+    def _recycle_guard_check(self, symbol: str, reason: str) -> tuple:
+        if not self._is_recycle_reason(reason):
+            return True, ""
+
+        max_closes = max(0, int(self.config.get("recycle_max_closes_per_cycle", 1)))
+        if self._recycle_closes_this_cycle >= max_closes:
+            return (
+                False,
+                f"cycle cap reached ({self._recycle_closes_this_cycle}/{max_closes})",
+            )
+
+        cooldown = max(0, int(self.config.get("recycle_symbol_cooldown_seconds", 300)))
+        if cooldown <= 0:
+            return True, ""
+
+        last_ts = float(self._last_recycle_close_ts.get(symbol, 0) or 0)
+        if last_ts <= 0:
+            return True, ""
+
+        age = time.time() - last_ts
+        if age < cooldown:
+            return False, f"symbol cooldown active ({age:.0f}s < {cooldown}s)"
+        return True, ""
+
+    def _position_hold_seconds(self, pos: Dict) -> float:
+        opened_raw = (pos or {}).get("opened")
+        if not opened_raw:
+            return 0.0
+        try:
+            opened_dt = datetime.fromisoformat(str(opened_raw).replace("Z", "+00:00"))
+            if opened_dt.tzinfo is not None:
+                now_dt = datetime.now(opened_dt.tzinfo)
+            else:
+                now_dt = datetime.now()
+            return max(0.0, (now_dt - opened_dt).total_seconds())
+        except Exception:
+            return 0.0
+
+    def _record_recycle_close(self, symbol: str, reason: str) -> None:
+        if not self._is_recycle_reason(reason):
+            return
+        self._recycle_closes_this_cycle += 1
+        self._last_recycle_close_ts[symbol] = time.time()
+        # Prevent unbounded growth in persisted memory.
+        if len(self._last_recycle_close_ts) > 300:
+            oldest = sorted(self._last_recycle_close_ts.items(), key=lambda x: x[1])[:50]
+            for sym, _ in oldest:
+                self._last_recycle_close_ts.pop(sym, None)
+        self.agent_memory["recycle_close_ts"] = self._last_recycle_close_ts
+
+    def _mark_buy_reentry_cooldown(self, symbol: str, seconds: int) -> None:
+        cooldown_seconds = max(0, int(seconds))
+        if cooldown_seconds <= 0:
+            return
+        now_ts = time.time()
+        cooldown_map = self.agent_memory.setdefault("buy_reentry_cooldown_until", {})
+        cooldown_map[symbol] = now_ts + cooldown_seconds
+        # Keep cooldown map bounded.
+        if len(cooldown_map) > 400:
+            for sym, ts in sorted(cooldown_map.items(), key=lambda x: x[1])[:120]:
+                if ts <= now_ts:
+                    cooldown_map.pop(sym, None)
+
+    def _get_buy_reentry_cooldown_remaining(self, symbol: str) -> float:
+        cooldown_map = self.agent_memory.get("buy_reentry_cooldown_until", {}) or {}
+        until_ts = float(cooldown_map.get(symbol, 0) or 0)
+        if until_ts <= 0:
+            return 0.0
+        remaining = until_ts - time.time()
+        if remaining <= 0:
+            cooldown_map.pop(symbol, None)
+            return 0.0
+        return remaining
+
+    def _next_stale_buy_reentry_cooldown(self, symbol: str) -> int:
+        """Escalate reentry cooldown for symbols repeatedly canceled as stale."""
+        base_seconds = max(0, int(self.config.get("stale_buy_reentry_cooldown_seconds", 75)))
+        max_seconds = max(base_seconds, int(self.config.get("stale_buy_reentry_cooldown_max_seconds", 240)))
+        counts = self.agent_memory.setdefault("stale_buy_cancel_counts", {})
+        n = int(counts.get(symbol, 0) or 0) + 1
+        counts[symbol] = n
+        if n <= 1:
+            return base_seconds
+        if n == 2:
+            return min(max_seconds, base_seconds * 2)
+        return min(max_seconds, base_seconds * 3)
+
+    def _reset_stale_buy_cancel_count(self, symbol: str) -> None:
+        counts = self.agent_memory.setdefault("stale_buy_cancel_counts", {})
+        if symbol in counts:
+            counts.pop(symbol, None)
 
     async def get_holdings_intelligence(self) -> Dict:
         """
@@ -3387,8 +3761,7 @@ class IBISTrueAgent:
         # Initialize advanced risk manager
         risk_manager = AdvancedRiskManager()
 
-        # Calculate volatility from market intel (fallback to default)
-        volatility = 0.18  # Default for volatile market
+        # Keep symbol-specific volatility when available; fallback remains at function entry.
 
         # Get current number of positions
         current_positions = len(self.state["positions"])
@@ -3466,11 +3839,11 @@ class IBISTrueAgent:
         IBIS Philosophy: NO HOPE. ONLY HUNT.
         Position size is determined by intelligence, not constraints.
         """
-        opp = market_intel.get(symbol, {})
+        opp = market_intel.get(symbol, {}) if isinstance(market_intel, dict) else {}
         score = opp.get("score", 50)
         regime = strategy.get("regime", "NORMAL")
 
-        return await self.calculate_position_size(score, strategy, regime, market_intel)
+        return await self.calculate_position_size(score, strategy, regime, opp)
 
     def _is_market_primed(self, market_intel=None):
         """Check if market conditions are primed for trading"""
@@ -3606,6 +3979,13 @@ class IBISTrueAgent:
         min_threshold = self.config.get(
             "min_score", 70
         )  # More aggressive threshold for opportunities
+        fee_guard_enabled = bool(self.config.get("execution_fee_guard_enabled", True))
+        max_fee_per_side = float(self.config.get("execution_fee_max_per_side", 0.0025))
+        fee_override_score = float(self.config.get("execution_fee_override_score", 90))
+        fee_profile = self._load_symbol_fee_profile()
+        fee_blocklist = self._get_execution_fee_blocklist()
+        slow_fill_symbols = self._get_slow_fill_symbols()
+        latency_override_score = float(self.config.get("latency_guard_override_score", 90))
         log_event(f"   🎯 Filtering with MIN_SCORE: {min_threshold:.1f}")
 
         # 🎯 STRICT QUALITY FILTERING
@@ -3614,6 +3994,25 @@ class IBISTrueAgent:
                 continue
 
             score = intel["score"]  # Base score without artificial boost
+
+            # Execution economics guardrail: avoid high-fee symbols unless conviction is strong.
+            sym_fee_rate = fee_profile.get(sym, 0.0)
+            if fee_guard_enabled and sym in fee_blocklist and score < fee_override_score:
+                log_event(
+                    f"      ❌ REJECTED: {sym} (fee-blocklisted {sym_fee_rate * 100:.3f}%/side, fills={self._symbol_fee_counts.get(sym, 0)})"
+                )
+                continue
+            if fee_guard_enabled and sym_fee_rate > max_fee_per_side and score < fee_override_score:
+                log_event(
+                    f"      ❌ REJECTED: {sym} (high fee {sym_fee_rate * 100:.3f}%/side > {max_fee_per_side * 100:.3f}% cap)"
+                )
+                continue
+            if sym in slow_fill_symbols and score < latency_override_score:
+                row = self.agent_memory.get("fill_latency_by_symbol", {}).get(sym, {})
+                log_event(
+                    f"      ❌ REJECTED: {sym} (slow fills avg={float(row.get('avg_seconds', 0)):.1f}s, samples={int(row.get('samples', 0))})"
+                )
+                continue
 
             # Reject low quality opportunities early
             if score < min_threshold:
@@ -4283,6 +4682,17 @@ class IBISTrueAgent:
         """Check all positions with proper TP/SL handling"""
         to_close = []
         DUST_THRESHOLD = 1.0  # $1 minimum to be considered a position
+        capital = await self.update_capital_awareness()
+        real_capital = float(capital.get("real_trading_capital", capital.get("usdt_available", 0)) or 0)
+        recycle_capital_trigger = float(
+            self.config.get("recycle_capital_trigger_usdt", TRADING.POSITION.MIN_CAPITAL_PER_TRADE)
+        )
+        recycle_min_projected_profit = float(
+            self.config.get("recycle_min_projected_profit_usdt", 0.03)
+        )
+        recycle_min_projected_pnl_pct = float(
+            self.config.get("recycle_min_projected_pnl_pct", 0.003)
+        )
 
         for sym, pos in list(self.state["positions"].items()):
             try:
@@ -4324,7 +4734,7 @@ class IBISTrueAgent:
                 pnl_pct = (current - buy_price) / buy_price if buy_price > 0 else 0
 
                 trade_value = quantity * current
-                estimated_fees = trade_value * TRADING.get_total_friction()
+                estimated_fees = trade_value * self._estimate_total_friction_for_symbol(sym)
                 pnl_value = quantity * (current - buy_price)
                 actual_profit = pnl_value - estimated_fees
 
@@ -4361,9 +4771,11 @@ class IBISTrueAgent:
                 elif current_score < 35 and pnl_pct < -0.003 and actual_profit < -min_profit:
                     to_close.append((sym, "ALPHA_DECAY", current, pnl_pct, actual_profit))
 
-                capital = await self.update_capital_awareness()
-                real_capital = capital.get("real_trading_capital", 0)
-                if real_capital < 3.0 and actual_profit > min_profit:
+                if (
+                    real_capital < recycle_capital_trigger
+                    and actual_profit > max(min_profit, recycle_min_projected_profit)
+                    and pnl_pct >= recycle_min_projected_pnl_pct
+                ):
                     to_close.append((sym, "RECYCLE_PROFIT", current, pnl_pct, actual_profit))
 
             except Exception as e:
@@ -4407,6 +4819,24 @@ class IBISTrueAgent:
             return
 
         filled_count = 0
+        canceled_count = 0
+        stale_buy_seconds = int(self.config.get("stale_buy_cancel_seconds", 90))
+        pressure_relief_seconds = int(self.config.get("stale_buy_pressure_relief_seconds", 45))
+        pressure_trigger = int(self.config.get("stale_buy_pressure_trigger", 4))
+        stale_buy_max_per_cycle = int(self.config.get("stale_buy_cancel_max_per_cycle", 3))
+        min_trade_capital = float(TRADING.POSITION.MIN_CAPITAL_PER_TRADE)
+        available_usdt = float(
+            self.state.get("capital_awareness", {}).get("real_trading_capital", 0)
+            or self.state.get("capital_awareness", {}).get("usdt_available", 0)
+            or 0
+        )
+        under_capital_pressure = available_usdt < min_trade_capital and len(buy_orders) > 0
+        if len(buy_orders) >= pressure_trigger or under_capital_pressure:
+            stale_buy_seconds = min(stale_buy_seconds, pressure_relief_seconds)
+        if under_capital_pressure:
+            # Reclaim deployable USDT quickly when available is below the $11 hard minimum.
+            stale_buy_max_per_cycle = max(stale_buy_max_per_cycle, min(len(buy_orders), pressure_trigger))
+        live_balances_cache = None
         for symbol, order_info in list(buy_orders.items()):
             try:
                 order_id = order_info.get("order_id")
@@ -4419,7 +4849,7 @@ class IBISTrueAgent:
 
                 is_active = order.status == "ACTIVE"
                 deal_size = order.filled_size
-                deal_funds = 0  # Not available from TradeOrder
+                deal_funds = float(getattr(order, "deal_funds", 0) or 0)
                 avg_price = order.avg_price
                 fee = order.fee
                 fee_currency = order.fee_currency
@@ -4432,8 +4862,27 @@ class IBISTrueAgent:
                 )
 
                 if not is_active and (deal_size > 0 or deal_funds > 0):
-                    actual_price = avg_price if avg_price > 0 else order_info.get("price", 0)
-                    actual_quantity = deal_size or order_info.get("quantity", 0)
+                    actual_price = float(avg_price if avg_price > 0 else order_info.get("price", 0) or 0)
+                    actual_quantity = float(deal_size or 0)
+                    if actual_quantity <= 0 and deal_funds > 0 and actual_price > 0:
+                        actual_quantity = deal_funds / actual_price
+                    if actual_quantity <= 0:
+                        actual_quantity = float(order_info.get("quantity", 0) or 0)
+                    fill_latency_seconds = 0.0
+                    try:
+                        created_at_ms = int(getattr(order, "created_at", 0) or 0)
+                    except Exception:
+                        created_at_ms = 0
+                    if created_at_ms > 0:
+                        fill_latency_seconds = max(0.0, (time.time() * 1000 - created_at_ms) / 1000.0)
+                    elif order_info.get("timestamp"):
+                        try:
+                            opened_at = datetime.fromisoformat(str(order_info.get("timestamp")))
+                            fill_latency_seconds = max(
+                                0.0, (datetime.now() - opened_at).total_seconds()
+                            )
+                        except Exception:
+                            fill_latency_seconds = 0.0
 
                     if actual_quantity <= 0:
                         del buy_orders[symbol]
@@ -4470,17 +4919,124 @@ class IBISTrueAgent:
                         print(f"   Fee: {fee} {fee_currency}")
                         filled_count += 1
 
+                    if fill_latency_seconds > 0:
+                        self._record_fill_latency(symbol, fill_latency_seconds)
+                        daily = self.state.setdefault("daily", {})
+                        prev_avg = float(daily.get("avg_buy_fill_latency_seconds", 0.0) or 0.0)
+                        prev_samples = int(daily.get("buy_fill_samples", 0) or 0)
+                        new_samples = prev_samples + 1
+                        daily["avg_buy_fill_latency_seconds"] = (
+                            ((prev_avg * prev_samples) + fill_latency_seconds) / new_samples
+                        )
+                        daily["buy_fill_samples"] = new_samples
+                        self._save_memory()
+
+                    # Successful fill clears stale-cancel escalation history for this symbol.
+                    self._reset_stale_buy_cancel_count(symbol)
+                    self._save_memory()
+
                     # Delete the pending order regardless
                     del buy_orders[symbol]
                     self._save_state()
 
                 elif is_active:
-                    pass
+                    # Throughput policy: actively free capital from stale, unfilled buy orders.
+                    # Only applies to fully unfilled active buys.
+                    if canceled_count >= stale_buy_max_per_cycle:
+                        continue
+                    created_at = int(getattr(order, "created_at", 0) or 0)
+                    age_seconds = (
+                        max(0.0, (time.time() * 1000 - created_at) / 1000.0) if created_at > 0 else 0
+                    )
+                    if deal_size <= 0 and created_at > 0 and age_seconds >= stale_buy_seconds:
+                        try:
+                            await self.client.cancel_order(order_id)
+                            self.log_event(
+                                f"   [STALE BUY CANCELED] {symbol}: age={age_seconds:.0f}s >= {stale_buy_seconds}s | "
+                                f"avail=${available_usdt:.2f} | pending={len(buy_orders)} | pressure={under_capital_pressure}"
+                            )
+                            if symbol in buy_orders:
+                                del buy_orders[symbol]
+                            daily = self.state.setdefault("daily", {})
+                            daily["orders_cancelled"] = int(daily.get("orders_cancelled", 0) or 0) + 1
+                            prev_stale_cancels = daily.get("stale_buy_cancels", 0)
+                            try:
+                                prev_stale_cancels = int(prev_stale_cancels or 0)
+                            except Exception:
+                                prev_stale_cancels = 0
+                            daily["stale_buy_cancels"] = prev_stale_cancels + 1
+                            reentry_cooldown_seconds = self._next_stale_buy_reentry_cooldown(symbol)
+                            self._mark_buy_reentry_cooldown(symbol, reentry_cooldown_seconds)
+                            canceled_count += 1
+                            self._save_state()
+                            self._save_memory()
+                            continue
+                        except Exception as cancel_e:
+                            self.log_event(f"   [STALE BUY CANCEL WARN] {symbol}: {cancel_e}")
                 else:
-                    # Order is no longer active and has no fills: remove stale pending marker.
+                    # Order inactive with zero reported fills. Check live balance to avoid missing fills.
+                    if live_balances_cache is None:
+                        try:
+                            live_balances_cache = await self.client.get_all_balances(min_value_usd=0)
+                        except Exception:
+                            live_balances_cache = {}
+
+                    bal_row = (
+                        live_balances_cache.get(symbol, {})
+                        if isinstance(live_balances_cache, dict)
+                        else {}
+                    )
+                    exch_total_qty = float(bal_row.get("balance", 0) or 0)
+                    exch_available_qty = float(bal_row.get("available", 0) or 0)
+                    symbol_price = float(order_info.get("price", 0) or 0)
+                    if symbol_price <= 0:
+                        ticker = self.latest_tickers.get(symbol)
+                        if ticker and getattr(ticker, "price", 0):
+                            symbol_price = float(ticker.price)
+                        else:
+                            try:
+                                t = await self.client.get_ticker(f"{symbol}-USDT")
+                                symbol_price = float(getattr(t, "price", 0) or 0)
+                            except Exception:
+                                symbol_price = 0.0
+                    exch_value = exch_total_qty * symbol_price if symbol_price > 0 else 0.0
+
+                    if exch_total_qty > 0 and exch_value >= 1.0:
+                        self.log_event(
+                            f"   [PENDING RECOVERED] {symbol}: inactive order but live balance={exch_total_qty:.8f}, reconstructing position"
+                        )
+                        if symbol in self.state["positions"]:
+                            self.state["positions"][symbol]["quantity"] = exch_total_qty
+                            if symbol_price > 0:
+                                self.state["positions"][symbol]["buy_price"] = symbol_price
+                            self.state["positions"][symbol]["current_price"] = symbol_price
+                        else:
+                            pos = {
+                                "symbol": symbol,
+                                "quantity": exch_total_qty,
+                                "buy_price": symbol_price,
+                                "current_price": symbol_price,
+                                "tp": order_info.get("tp"),
+                                "sl": order_info.get("sl"),
+                                "mode": order_info.get("mode", "SWING"),
+                                "regime": order_info.get("regime", "unknown"),
+                                "opened": order_info.get("timestamp", datetime.now().isoformat()),
+                                "opportunity_score": order_info.get("opportunity_score", 50),
+                                "order_id": order_id,
+                                "fee": fee,
+                                "fee_currency": fee_currency,
+                            }
+                            self.state["positions"][symbol] = pos
+                            self.state["daily"]["trades"] += 1
+                        if symbol in buy_orders:
+                            del buy_orders[symbol]
+                        self._save_state()
+                        continue
+
+                    # No live balance => clear stale marker.
                     if symbol in buy_orders:
                         self.log_event(
-                            f"   [PENDING CLEARED] {symbol}: inactive with zero fill, removing stale pending order"
+                            f"   [PENDING CLEARED] {symbol}: inactive with zero fill (avail={exch_available_qty:.8f}, total={exch_total_qty:.8f}), removing stale pending order"
                         )
                         del buy_orders[symbol]
                         self._save_state()
@@ -4513,9 +5069,9 @@ class IBISTrueAgent:
                 return
 
             now_ms = int(time.time() * 1000)
-            stale_seconds = int(self.config.get("stale_sell_reprice_seconds", 120))
-            hard_seconds = int(self.config.get("stale_sell_hard_seconds", 300))
-            cooldown_seconds = int(self.config.get("stale_reprice_cooldown_seconds", 90))
+            stale_seconds = int(self.config.get("stale_sell_reprice_seconds", 60))
+            hard_seconds = int(self.config.get("stale_sell_hard_seconds", 180))
+            cooldown_seconds = int(self.config.get("stale_reprice_cooldown_seconds", 45))
             max_reprices = int(self.config.get("stale_reprice_max_per_cycle", 2))
             repriced = 0
 
@@ -4697,16 +5253,8 @@ class IBISTrueAgent:
                     evicted += 1
 
             if evicted > 0:
-                # Refresh available with live balances after evictions.
-                balances = await self.client.get_all_balances()
-                open_orders = await self.client.get_open_orders()
-                usdt_available = float(balances.get("USDT", {}).get("available", 0))
-                buy_orders_value = sum(
-                    float(o.get("funds", 0) or 0)
-                    for o in open_orders
-                    if str(o.get("side", "")).lower() == "buy"
-                )
-                strategy["available"] = max(0, usdt_available - buy_orders_value)
+                # Refresh deployable capital after evictions.
+                await self._refresh_strategy_available(strategy, "zombie_prune")
                 self.log_event(
                     f"   ✅ ZOMBIE PRUNE COMPLETE: evicted={evicted}, available=${strategy['available']:.2f}"
                 )
@@ -4715,10 +5263,31 @@ class IBISTrueAgent:
 
     async def close_position(self, symbol, reason, exit_price, pnl_pct, strategy) -> bool:
         """Close position and learn. Returns True if closed successfully, False otherwise."""
+        pos = self.state["positions"].get(symbol)
+        if self._is_recycle_reason(reason) and pos:
+            min_hold_seconds = max(0, int(self.config.get("recycle_min_hold_seconds", 120)))
+            hold_seconds = self._position_hold_seconds(pos)
+            if hold_seconds < min_hold_seconds:
+                self.log_event(
+                    f"   🛡️ RECYCLE HOLD GUARD: skip close {symbol} ({reason}) hold={hold_seconds:.0f}s < {min_hold_seconds}s"
+                )
+                return False
+
+        allowed, guard_reason = self._recycle_guard_check(symbol, reason)
+        if not allowed:
+            self.log_event(
+                f"   🛡️ RECYCLE THROTTLE: skip close {symbol} ({reason}) - {guard_reason}"
+            )
+            return False
+
         if self._close_lock is None:
             self._close_lock = asyncio.Lock()
         async with self._close_lock:
-            self.log_event(f"   [CLOSE FN START] {symbol}")
+            if symbol in self._closing_symbols:
+                self.log_event(f"   [CLOSE SKIP] {symbol} close already in-flight")
+                return False
+            self._closing_symbols.add(symbol)
+            self.log_event(f"   [CLOSE FN START] {symbol} reason={reason}")
         pos = self.state["positions"].get(symbol)
         self.log_event(f"   [CLOSE FN FOUND] {symbol}: {pos is not None}")
         if not pos:
@@ -4727,6 +5296,7 @@ class IBISTrueAgent:
             if symbol in buy_orders:
                 del buy_orders[symbol]
                 self._save_state()
+            self._closing_symbols.discard(symbol)
             return False
 
         # 🧹 DUST CHECK FIRST: Check BEFORE attempting to close
@@ -4740,6 +5310,7 @@ class IBISTrueAgent:
             )
             del self.state["positions"][symbol]
             self._save_state()
+            self._closing_symbols.discard(symbol)
             return True
 
         try:
@@ -4803,6 +5374,7 @@ class IBISTrueAgent:
                 self.log_event(
                     f"   [CLOSE WARN] Already has open sell order for {symbol}, skipping"
                 )
+                self._closing_symbols.discard(symbol)
                 return False
 
             try:
@@ -4841,6 +5413,7 @@ class IBISTrueAgent:
 
             except asyncio.TimeoutError:
                 self.log_event(f"   [CLOSE ERROR] Timeout for {symbol}")
+                self._closing_symbols.discard(symbol)
                 return False
             except Exception as e:
                 error_msg = str(e)
@@ -4884,6 +5457,7 @@ class IBISTrueAgent:
                             raise Exception(f"Symbol data not found for {symbol}")
                     except Exception as retry_error:
                         self.log_event(f"   [CLOSE FAIL] {symbol} retry failed: {retry_error}")
+                        self._closing_symbols.discard(symbol)
                         return False
 
                 elif (
@@ -4923,6 +5497,7 @@ class IBISTrueAgent:
                                 )
                             except Exception:
                                 pass
+                            self._closing_symbols.discard(symbol)
                             return True
 
                         adjusted_qty = round_down_to_increment(exch_total, base_increment)
@@ -4934,6 +5509,7 @@ class IBISTrueAgent:
                             self.log_event(
                                 f"   [CLOSE RECONCILE] {symbol}: balance locked (avail=0, total={exch_total}), keeping position tracked"
                             )
+                            self._closing_symbols.discard(symbol)
                             return False
 
                         if adjusted_qty <= 0:
@@ -4948,6 +5524,7 @@ class IBISTrueAgent:
                                 symbol, None
                             )
                             self._save_state()
+                            self._closing_symbols.discard(symbol)
                             return True
 
                         if symbol in self.state.get("positions", {}):
@@ -4958,13 +5535,15 @@ class IBISTrueAgent:
                         )
                     except Exception as rec_err:
                         self.log_event(f"   [CLOSE RECONCILE ERROR] {symbol}: {rec_err}")
+                    self._closing_symbols.discard(symbol)
                     return False
                 else:
+                    self._closing_symbols.discard(symbol)
                     return False
 
             # Calculate REAL PnL from actual fill price and actual fees
             trade_volume = quantity * actual_fill_price
-            estimated_fees = trade_volume * TRADING.get_total_friction()
+            estimated_fees = trade_volume * self._estimate_total_friction_for_symbol(symbol)
 
             # Use actual fees from KuCoin if available, otherwise estimate
             if actual_fee > 0:
@@ -5033,6 +5612,8 @@ class IBISTrueAgent:
             except Exception as e:
                 pass
 
+            self._record_recycle_close(symbol, reason)
+            self._closing_symbols.discard(symbol)
             return True
 
         except Exception as e:
@@ -5047,6 +5628,7 @@ class IBISTrueAgent:
                 or "funds should more than" in error_msg.lower()
             ):
                 print(f"⚠️ Position {symbol} - order failed, will retry next cycle")
+                self._closing_symbols.discard(symbol)
                 return False
             else:
                 print(f"⚠️ Unexpected close error for {symbol}")
@@ -5056,6 +5638,7 @@ class IBISTrueAgent:
                 if symbol in self.state.get("positions", {}):
                     del self.state["positions"][symbol]
                 self._save_state()
+                self._closing_symbols.discard(symbol)
                 return False
 
     async def learn_from_trade(self, symbol, regime, pnl_pct, outcome):
@@ -5983,6 +6566,7 @@ class IBISTrueAgent:
         while True:
             try:
                 cycle += 1
+                self._recycle_closes_this_cycle = 0
 
                 # 🗓️ DAILY RESET: Check if date changed and reset daily stats
                 today = datetime.now().strftime("%Y-%m-%d")
@@ -6008,8 +6592,9 @@ class IBISTrueAgent:
                 # 🧠 Step 0c: Adaptive Risk Management
                 await self.update_adaptive_risk()
 
-                # Step 1: Reconcile on startup (first loop) or every 50 cycles
-                if cycle == 1 or cycle % 50 == 0:
+                reconcile_every = max(1, int(self.config.get("reconcile_cycle_interval", 15)))
+                # Reconcile on startup and then on fixed cadence to reduce state/live drift windows.
+                if cycle == 1 or cycle % reconcile_every == 0:
                     await self.reconcile_holdings()
                     await self.sync_pnl_from_kucoin()
 
@@ -6069,6 +6654,7 @@ class IBISTrueAgent:
                     f"   🎯 ANALYZING {len(self.market_intel)} opportunities for trade entry..."
                 )
                 opportunities = await self.find_all_opportunities(strategy)
+                opportunities = self._admission_rank_opportunities(opportunities, strategy)
                 self.log_event(f"   🔥 FOUND {len(opportunities)} TRADEABLE candidates")
                 best = opportunities[0] if opportunities else None
 
@@ -6097,30 +6683,77 @@ class IBISTrueAgent:
                             f"   🛑 Insufficient capital (${strategy['available']:.2f} < ${TRADING.POSITION.MIN_CAPITAL_PER_TRADE} minimum)"
                         )
 
+                recycle_decision_made = False
+                alpha_recycle_decision_made = False
+                tracked_open_order_symbols = set(
+                    (self.state.get("capital_awareness", {}).get("buy_orders", {}) or {}).keys()
+                )
+                tracked_open_order_symbols.update(
+                    (self.state.get("capital_awareness", {}).get("sell_orders", {}) or {}).keys()
+                )
                 for opportunity in opportunities:
+                    min_trade_capital = TRADING.POSITION.MIN_CAPITAL_PER_TRADE
+                    max_open_buy_orders = int(self.config.get("max_open_buy_orders", 8))
+                    pending_buys_now = len(
+                        self.state.get("capital_awareness", {}).get("buy_orders", {}) or {}
+                    )
+                    if pending_buys_now >= max_open_buy_orders:
+                        self.log_event(
+                            f"   🧱 QUEUE GUARD: pending buys {pending_buys_now}/{max_open_buy_orders}, deferring new entries this cycle"
+                        )
+                        break
                     # 🚀 PROFIT RECYCLING: Only recycle for high-quality opportunities (score >= 70)
                     # This prevents costly recycling for marginal opportunities
                     self.log_event(
                         f"   [RECYCLE TEST] available=${strategy['available']:.2f}, score={opportunity['score']:.1f}"
                     )
-                    if strategy["available"] < 5.0 and opportunity["score"] >= 70:
+                    if (
+                        not recycle_decision_made
+                        and strategy["available"] < min_trade_capital
+                        and opportunity["score"] >= 70
+                    ):
                         self.log_event(
                             f"   🔱 CAPITAL RECYCLING: ${strategy['available']:.2f} available for {opportunity['symbol']} (Score: {opportunity['score']:.0f})"
                         )
+                        recycle_decision_made = True
 
-                        # Find best position to close (prioritize profit, then accept loss if needed)
+                        # Find best position to close by projected net after execution friction.
                         best_to_close = None
-                        best_pnl = -999
+                        best_profit = -999.0
+                        best_pnl = -999.0
                         for sym, pos in self.state["positions"].items():
-                            pnl_pct = pos.get("unrealized_pnl_pct", 0)
-                            if pnl_pct > best_pnl:
+                            qty = float(pos.get("quantity", 0) or 0)
+                            buy_px = float(pos.get("buy_price", 0) or 0)
+                            current_px = float(pos.get("current_price", 0) or buy_px or 0)
+                            if qty <= 0 or buy_px <= 0 or current_px <= 0:
+                                continue
+                            pnl_pct = (current_px - buy_px) / buy_px
+                            est_fees = qty * current_px * self._estimate_total_friction_for_symbol(sym)
+                            projected_profit = (qty * (current_px - buy_px)) - est_fees
+                            if projected_profit > best_profit:
+                                best_profit = projected_profit
                                 best_pnl = pnl_pct
-                                best_to_close = (sym, pos)
+                                best_to_close = (sym, pos, projected_profit)
 
                         if best_to_close:
-                            sym, pos = best_to_close
+                            sym, pos, projected_profit = best_to_close
+                            recycle_allow_loss = bool(self.config.get("recycle_allow_loss", False))
+                            recycle_min_pnl_pct = float(self.config.get("recycle_min_pnl_pct", 0.0))
+                            recycle_min_projected_profit = float(
+                                self.config.get("recycle_min_projected_profit_usdt", 0.03)
+                            )
+                            if projected_profit < recycle_min_projected_profit:
+                                self.log_event(
+                                    f"      🛡️ RECYCLE GUARD: skipping recycle close for {sym}, projected net ${projected_profit:+.4f} < ${recycle_min_projected_profit:.4f}"
+                                )
+                                continue
+                            if (not recycle_allow_loss) and (best_pnl < recycle_min_pnl_pct):
+                                self.log_event(
+                                    f"      🛡️ RECYCLE GUARD: skipping recycle close for {sym} at {best_pnl * 100:+.2f}%"
+                                )
+                                continue
                             self.log_event(
-                                f"      💰 RECYCLING: Closing {sym} at {best_pnl * 100:+.2f}% to fund {opportunity['symbol']}"
+                                f"      💰 RECYCLING: Closing {sym} at {best_pnl * 100:+.2f}% (projected net ${projected_profit:+.4f}) to fund {opportunity['symbol']}"
                             )
                             self.log_event(f"   [RECYCLE BEFORE] calling close_position for {sym}")
                             await self.close_position(
@@ -6131,28 +6764,19 @@ class IBISTrueAgent:
                                 strategy,
                             )
                             self.log_event(f"   [RECYCLE AFTER] close_position completed for {sym}")
-                            # Refresh capital after close
-                            current_balances = await self.client.get_all_balances()
-                            open_orders = await self.client.get_open_orders()
-                            usdt_available = float(
-                                current_balances.get("USDT", {}).get("available", 0)
-                            )
-                            buy_orders_value = sum(
-                                float(o.get("funds", 0) or 0)
-                                for o in open_orders
-                                if o.get("side", "").lower() == "buy"
-                            )
-                            strategy["available"] = max(0, usdt_available - buy_orders_value)
-                            self.log_event(
-                                f"      💵 Capital after recycling: ${strategy['available']:.2f}"
-                            )
+                            await self._refresh_strategy_available(strategy, "recycle_close")
 
                     # 🚀 AGGRESSIVE ALPHA RECYCLING: Clear positions for ANY high-score opportunity
                     is_strong = opportunity["score"] >= 85  # Only recycle for STRONG_SETUP+ signals
-                    if (strategy["available"] < 5.0) and is_strong:
+                    if (
+                        not alpha_recycle_decision_made
+                        and (strategy["available"] < min_trade_capital)
+                        and is_strong
+                    ):
                         self.log_event(
                             f"   🔱 STRONG SIGNAL: {opportunity['symbol']} (Score: {opportunity['score']:.0f}). Clearing stagnant capital..."
                         )
+                        alpha_recycle_decision_made = True
 
                         # Find ALL positions with a 'Confidence Gap' relative to the new opportunity
                         recycled_any = False
@@ -6192,10 +6816,33 @@ class IBISTrueAgent:
                                 )
 
                                 for sym, pos_score, pos in current_positions:
+                                    recycle_allow_loss = bool(
+                                        self.config.get("recycle_allow_loss", False)
+                                    )
+                                    recycle_min_pnl_pct = float(
+                                        self.config.get("recycle_min_pnl_pct", 0.0)
+                                    )
+                                    recycle_min_projected_profit = float(
+                                        self.config.get("recycle_min_projected_profit_usdt", 0.03)
+                                    )
+                                    pos_pnl = float(pos.get("unrealized_pnl_pct", 0) or 0)
+                                    qty = float(pos.get("quantity", 0) or 0)
+                                    buy_px = float(pos.get("buy_price", 0) or 0)
+                                    current_px = float(pos.get("current_price", 0) or buy_px or 0)
+                                    if qty <= 0 or buy_px <= 0 or current_px <= 0:
+                                        continue
+                                    est_fees = (
+                                        qty * current_px * self._estimate_total_friction_for_symbol(sym)
+                                    )
+                                    projected_profit = (qty * (current_px - buy_px)) - est_fees
                                     # 🔱 PARALYSIS BREAKER: If wallet is dead (<$1) and signal is strong (>80), kill the weakest
                                     is_paralyzed = (
                                         strategy["available"] < 1.0 and opportunity["score"] >= 80
                                     )
+                                    if projected_profit < recycle_min_projected_profit:
+                                        continue
+                                    if (not recycle_allow_loss) and (pos_pnl < recycle_min_pnl_pct):
+                                        continue
 
                                     # ♻️ RECYCLING RULES:
                                     is_stagnant = pos_score < 60
@@ -6231,22 +6878,12 @@ class IBISTrueAgent:
 
                                         recycled_any = True
                                         # After killing one, refresh available and check if we have enough
-                                        current_balances = await self.client.get_all_balances()
-                                        buy_orders = await self.client.get_open_orders()
-                                        usdt_available = float(
-                                            current_balances.get("USDT", {}).get("available", 0)
-                                        )
-                                        buy_orders_value = sum(
-                                            float(o.get("funds", 0) or 0)
-                                            for o in buy_orders
-                                            if o.get("side", "").lower() == "buy"
-                                        )
-                                        strategy["available"] = max(
-                                            0, usdt_available - buy_orders_value
+                                        await self._refresh_strategy_available(
+                                            strategy, "alpha_recycle"
                                         )
                                         if (
-                                            strategy["available"] >= 5.0
-                                        ):  # Enough to stop killing folks
+                                            strategy["available"] >= min_trade_capital
+                                        ):  # Enough to stop recycling
                                             break
 
                         if recycled_any:
@@ -6257,24 +6894,13 @@ class IBISTrueAgent:
                                     if pos["mode"] != "PENDING_BUY"
                                 ]
                             )
-                            # Refresh with real trading capital
-                            current_balances = await self.client.get_all_balances()
-                            buy_orders = await self.client.get_open_orders()
-                            usdt_available = float(
-                                current_balances.get("USDT", {}).get("available", 0)
-                            )
-                            buy_orders_value = sum(
-                                float(o.get("funds", 0) or 0)
-                                for o in buy_orders
-                                if o.get("side", "").lower() == "buy"
-                            )
-                            strategy["available"] = max(0, usdt_available - buy_orders_value)
+                            await self._refresh_strategy_available(strategy, "post_recycle")
 
                     if open_count < strategy["max_positions"]:
                         # 🛡️ HARD MINIMUM: Don't create dust positions
-                        if strategy["available"] < 5.0:
+                        if strategy["available"] < min_trade_capital:
                             self.log_event(
-                                f"   🛑 Insufficient capital (${strategy['available']:.2f} < $5.00 minimum)"
+                                f"   🛑 Insufficient capital (${strategy['available']:.2f} < ${min_trade_capital:.2f} minimum)"
                             )
                             break
 
@@ -6294,11 +6920,16 @@ class IBISTrueAgent:
                             self.log_event(f"   🛑 SKIPPING: Already have position in {symbol}")
                             continue
 
-                        # Check if there's already an open buy or sell order for this symbol
-                        open_orders = await self.client.get_open_orders()
-                        has_open_order = any(o["symbol"] == f"{symbol}-USDT" for o in open_orders)
-                        if has_open_order:
+                        # Check tracked open orders (synced by update_capital_awareness) to avoid duplicate buys.
+                        if symbol in tracked_open_order_symbols:
                             self.log_event(f"   🛑 SKIPPING: Already have open order for {symbol}")
+                            continue
+
+                        cooldown_remaining = self._get_buy_reentry_cooldown_remaining(symbol)
+                        if cooldown_remaining > 0:
+                            self.log_event(
+                                f"   🧊 SKIPPING: Reentry cooldown active for {symbol} ({cooldown_remaining:.0f}s remaining)"
+                            )
                             continue
 
                         # 🛡️ CHECK MINIMUM TRADE SIZE ($11 minimum)
@@ -6313,21 +6944,13 @@ class IBISTrueAgent:
 
                         self.log_event(f"   🚀 HYPER-TRADE START: {symbol} (${position_size:.2f})")
                         await self.open_position(opportunity, strategy)
+                        tracked_open_order_symbols.add(symbol)
                         self._save_state()  # Save state after opening position
                         open_count += 1
                         await asyncio.sleep(0.1)  # Hyper-fast execution
 
-                        # Refresh available after trade (accounting for locked buy orders)
-                        current_balances = await self.client.get_all_balances()
-                        open_orders = await self.client.get_open_orders()
-                        usdt_available = float(current_balances.get("USDT", {}).get("available", 0))
-                        buy_orders_value = sum(
-                            float(o.get("funds", 0) or 0)
-                            for o in open_orders
-                            if o.get("side", "").lower() == "buy"
-                        )
-                        strategy["available"] = max(0, usdt_available - buy_orders_value)
-                        if strategy["available"] < 5.0:
+                        await self._refresh_strategy_available(strategy, "post_open")
+                        if strategy["available"] < min_trade_capital:
                             has_insufficient_capital = True
                     else:
                         self.log_event(f"   🛑 Max positions reached ({open_count})")

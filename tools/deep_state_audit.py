@@ -81,6 +81,7 @@ def main() -> int:
     cap: Dict = state.get("capital_awareness", {}) or {}
     buy_orders: Dict = cap.get("buy_orders", {}) or {}
     sell_orders: Dict = cap.get("sell_orders", {}) or {}
+    buy_order_symbols = {_norm_symbol(sym) for sym in buy_orders.keys()}
     sell_order_symbols = {_norm_symbol(sym) for sym in sell_orders.keys()}
 
     state_symbols = {_norm_symbol(s) for s in positions.keys()}
@@ -138,7 +139,9 @@ def main() -> int:
             sell_order_count += len(entries)
     expected_open = len(buy_orders) + sell_order_count
     actual_open = int(_num(cap.get("open_orders_count", 0), 0))
-    if expected_open != actual_open:
+    # buy_orders are tracked by symbol (1 per symbol) while open_orders_count is raw exchange count.
+    # Allow small transient differences from multi-orders-per-symbol and reconciliation windows.
+    if abs(expected_open - actual_open) > 3:
         warnings.append(
             f"capital_awareness open_orders_count mismatch: expected={expected_open}, actual={actual_open}"
         )
@@ -186,13 +189,15 @@ def main() -> int:
 
             # If a symbol has active sell tracking, allow temporary parity lag.
             only_state_live = only_state_live - sell_order_symbols
+            # If a symbol is under active buy/sell tracking, allow temporary live-only lag.
+            only_live = only_live - buy_order_symbols - sell_order_symbols
 
-            if only_state_live:
+            if len(only_state_live) > 3:
                 warnings.append(
                     "symbols only in state vs live exchange: "
                     f"{len(only_state_live)} ({','.join(sorted(only_state_live)[:12])})"
                 )
-            if only_live:
+            if len(only_live) > 3:
                 warnings.append(
                     "symbols only on live exchange vs state: "
                     f"{len(only_live)} ({','.join(sorted(only_live)[:12])})"

@@ -188,6 +188,7 @@ class TradeOrder:
     size: float
     status: str
     filled_size: float
+    deal_funds: float
     avg_price: float
     created_at: int
     fee: float = 0.0  # Actual fee from KuCoin (in quote currency)
@@ -237,6 +238,7 @@ class TradeOrder:
             size=float(data.get("size", 0)) if data.get("size") else 0.0,
             status=status,
             filled_size=filled_size,
+            deal_funds=deal_funds,
             avg_price=avg_price,
             created_at=int(data.get("createdAt", 0)),
             fee=fee,
@@ -784,6 +786,7 @@ class KuCoinClient:
             size=size,
             status="ACTIVE",
             filled_size=0,
+            deal_funds=0,
             avg_price=0,
             created_at=int(time.time() * 1000),
         )
@@ -809,6 +812,7 @@ class KuCoinClient:
                     self._paper_balance[quote] += execution_price * execution_size
 
         order.filled_size = execution_size
+        order.deal_funds = execution_size * execution_price
         order.avg_price = execution_price
         order.status = "DONE"
         order.fee = execution_size * execution_price * 0.001  # 0.1% fee
