@@ -1,47 +1,64 @@
-# IBIS 24/7 Operations
+# 24/7 Operations
 
-## Runtime authority
-- Primary supervisor: `ibis-agent.service` (systemd)
-- Do not run parallel supervisors when systemd is active.
-- Canonical runtime check: `./runtime_status.sh`
+## Runtime Topology
 
-## Health commands
-- Quick runtime summary:
-  - `./runtime_status.sh`
-- Health check (scheduled/manual):
-  - `./run_health_check.sh`
-- Deep state/db audit:
-  - `./tools/deep_state_audit.py`
+- Service: `ibis-agent.service`
+- Working directory: `/root/projects/ibis_trader`
+- Active script: `/root/projects/ibis_trader/ibis_true_agent.py`
+- Credential file: `/root/projects/Dont enter unless solicited/AGI Trader/ibis/keys.env`
 
-## What "healthy" looks like
+## Scheduled Jobs
+
+- `ibis-healthcheck.timer` -> `ibis-healthcheck.service` (5m)
+- `ibis-exec-integrity.timer` -> `ibis-exec-integrity.service` (15m)
+- `ibis-hourly-kpi.timer` -> `ibis-hourly-kpi.service` (hourly)
+- `ibis-log-retention.timer` -> `ibis-log-retention.service` (daily)
+
+## Core Runbooks
+
+Health:
+
+```bash
+./runtime_status.sh
+./run_health_check.sh
+```
+
+Agent lifecycle:
+
+```bash
+systemctl restart ibis-agent.service
+systemctl status ibis-agent.service --no-pager -l
+```
+
+Timer lifecycle:
+
+```bash
+systemctl list-timers --all --no-pager | rg 'ibis-.*timer'
+```
+
+## Healthy State
+
 - `service_active: active`
 - `service_enabled: enabled`
-- `agent_pid` present
 - `state_positions == db_positions`
-- `overall: OK` in `runtime_status.sh`
+- `overall: OK`
 
-## Degraded states
-- `overall: DEGRADED` currently indicates at least one non-fatal risk, usually:
-  - credential restart survivability not verified
-  - deep audit warnings
+## Degraded State
 
-## Credential survivability
-- Verify source:
-  - `./tools/check_credentials_source.sh`
-- Configure systemd credential source from env file:
-  - `./tools/bootstrap_service_credentials.sh /path/to/keys.env`
-- The bootstrap script writes a systemd drop-in and reloads daemon config.
-- Restart is manual and deliberate:
-  - `sudo systemctl restart ibis-agent.service`
+Most common reasons:
+- live/state symbol parity mismatch
+- stale live orders not yet reflected in state
+- transient exchange DNS/rate-limit issues
 
-## Data consistency model
-- Agent state file (`data/ibis_true_state.json`) is written atomically.
-- Memory file (`data/ibis_true_memory.json`) is written atomically.
-- DB is synchronized periodically from in-memory state in agent runtime.
-- DB recovery and DB sync are lock-coordinated via `data/ibis_db.lock`.
+Immediate action:
 
-## Non-strategy guarantee
-- Operational tooling and integrity checks must not alter:
-  - TP/SL values
-  - risk/reward ratios
-  - strategy decision logic
+```bash
+./run_health_check.sh
+./runtime_status.sh
+```
+
+If still degraded, inspect:
+
+```bash
+journalctl -u ibis-agent.service --since '30 minutes ago' --no-pager
+```
