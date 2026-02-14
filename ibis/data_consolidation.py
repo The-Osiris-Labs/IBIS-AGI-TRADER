@@ -9,6 +9,7 @@ This layer syncs data bidirectionally without losing information.
 
 import json
 import os
+import fcntl
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -16,6 +17,8 @@ from typing import Dict, List, Optional
 
 STATE_FILE = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true_state.json"
 MEMORY_FILE = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true_memory.json"
+STATE_LOCK_FILE = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_state.lock"
+DB_LOCK_FILE = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_db.lock"
 
 
 def load_state() -> Dict:
@@ -23,8 +26,13 @@ def load_state() -> Dict:
     if not Path(STATE_FILE).exists():
         return {"positions": {}, "daily": {}, "capital_awareness": {}}
     try:
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
+        os.makedirs(os.path.dirname(STATE_LOCK_FILE), exist_ok=True)
+        with open(STATE_LOCK_FILE, "w") as lock_f:
+            fcntl.flock(lock_f, fcntl.LOCK_SH)
+            with open(STATE_FILE, "r") as f:
+                state = json.load(f)
+            fcntl.flock(lock_f, fcntl.LOCK_UN)
+            return state
     except:
         return {"positions": {}, "daily": {}, "capital_awareness": {}}
 
@@ -33,8 +41,16 @@ def save_state(state: Dict) -> bool:
     """Save JSON state file."""
     try:
         os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
-        with open(STATE_FILE, "w") as f:
-            json.dump(state, f, indent=2, default=str)
+        os.makedirs(os.path.dirname(STATE_LOCK_FILE), exist_ok=True)
+        with open(STATE_LOCK_FILE, "w") as lock_f:
+            fcntl.flock(lock_f, fcntl.LOCK_EX)
+            tmp_path = f"{STATE_FILE}.tmp"
+            with open(tmp_path, "w") as f:
+                json.dump(state, f, indent=2, default=str)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, STATE_FILE)
+            fcntl.flock(lock_f, fcntl.LOCK_UN)
         return True
     except Exception as e:
         print(f"Error saving state: {e}")
@@ -169,26 +185,33 @@ def sync_state_positions_to_db(state_positions: Dict, db):
     """
     Sync positions from JSON state to SQLite DB.
     """
-    for symbol, pos in state_positions.items():
-        db.update_position(
-            symbol=f"{symbol}-USDT",
-            quantity=pos.get("quantity", 0),
-            price=pos.get("buy_price", 0),
-            stop_loss=pos.get("sl"),
-            take_profit=pos.get("tp"),
-            agi_score=pos.get("opportunity_score", 50),
-            agi_insight="AGI Confirmed",
-            entry_fee=0,
-            limit_sell_order_id=None,
-            limit_sell_price=pos.get("tp"),
-        )
+    os.makedirs(os.path.dirname(DB_LOCK_FILE), exist_ok=True)
+    with open(DB_LOCK_FILE, "w") as lock_f:
+        fcntl.flock(lock_f, fcntl.LOCK_EX)
+        normalized_state_symbols = set()
+        for symbol, pos in state_positions.items():
+            norm_symbol = str(symbol).replace("-USDT", "").replace("-USDC", "")
+            normalized_state_symbols.add(norm_symbol)
+            db.update_position(
+                symbol=norm_symbol,
+                quantity=pos.get("quantity", 0),
+                price=pos.get("buy_price", 0),
+                stop_loss=pos.get("sl"),
+                take_profit=pos.get("tp"),
+                agi_score=pos.get("opportunity_score", 50),
+                agi_insight="AGI Confirmed",
+                entry_fee=0,
+                limit_sell_order_id=None,
+                limit_sell_price=pos.get("tp"),
+            )
 
-    # Remove positions from DB that are not in state file
-    db_positions = db.get_open_positions()
-    for db_pos in db_positions:
-        symbol = db_pos["symbol"].replace("-USDT", "")
-        if symbol not in state_positions:
-            db.close_position(db_pos["symbol"], db_pos["current_price"], reason="NOT_IN_STATE")
+        # Remove positions from DB that are not in state file
+        db_positions = db.get_open_positions()
+        for db_pos in db_positions:
+            norm_db_symbol = str(db_pos["symbol"]).replace("-USDT", "").replace("-USDC", "")
+            if norm_db_symbol not in normalized_state_symbols:
+                db.close_position(db_pos["symbol"], db_pos["current_price"], reason="NOT_IN_STATE")
+        fcntl.flock(lock_f, fcntl.LOCK_UN)
 
 
 def run_full_sync(db) -> bool:

@@ -3,11 +3,19 @@
 # IBIS True Agent 24/7 Monitoring System
 # Includes health checks, recovery, and performance metrics
 
-LOG_FILE="ibis_247_monitor.log"
-DB_FILE="data/ibis_v8.db"
-STATE_FILE="data/ibis_true_state.json"
-AGENT_LOG="ibis_true_agent.log"
-BATCH_LOG="batch_monitor.log"
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_FILE="$SCRIPT_DIR/ibis_247_monitor.log"
+DB_FILE="$SCRIPT_DIR/data/ibis_v8.db"
+STATE_FILE="$SCRIPT_DIR/data/ibis_true_state.json"
+AGENT_LOG="$SCRIPT_DIR/ibis_true_agent.log"
+BATCH_LOG="$SCRIPT_DIR/batch_monitor.log"
+PID_FILE="$SCRIPT_DIR/ibis_true_agent.pid"
+AGENT_REGEX="/root/projects/(ibis_trader|Dont enter unless solicited/AGI Trader)/ibis_true_agent.py"
+LOCK_FILE="$SCRIPT_DIR/data/ibis_247_monitor.lock"
+DB_LOCK_FILE="$SCRIPT_DIR/data/ibis_db.lock"
+SERVICE_NAME="ibis-agent.service"
 
 # Configuration
 MAX_CRASHES=3
@@ -22,14 +30,41 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
 }
 
-# Check if file is recent
-is_recent() {
+load_env_files() {
+    for env_file in "$SCRIPT_DIR/keys.env" "$SCRIPT_DIR/ibis/keys.env" "$SCRIPT_DIR/.env"; do
+        if [ -f "$env_file" ]; then
+            set -a
+            # shellcheck disable=SC1090
+            source "$env_file"
+            set +a
+        fi
+    done
+}
+
+find_agent_pid() {
+    pgrep -f "$AGENT_REGEX" 2>/dev/null | head -n 1
+}
+
+service_is_active() {
+    systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null
+}
+
+# Check if file age exceeds max_age seconds.
+# Returns 0 when stale, 1 when fresh/unknown.
+is_older_than() {
     local file_path="$1"
     local max_age="$2"
     local file_time=$(stat -c %Y "$file_path" 2>/dev/null || echo 0)
     local current_time=$(date +%s)
-    
-    return $(( current_time - file_time > max_age ))
+
+    if [ "$file_time" -le 0 ]; then
+        return 0
+    fi
+
+    if [ $((current_time - file_time)) -gt "$max_age" ]; then
+        return 0
+    fi
+    return 1
 }
 
 # Check system health
@@ -51,40 +86,50 @@ check_health() {
     fi
     
     # Check database state
-    POSITION_COUNT=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM positions;" 2>/dev/null)
+    local has_positions
+    has_positions=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='positions';" 2>/dev/null)
+    POSITION_COUNT=0
+    if [ "$has_positions" = "1" ]; then
+        POSITION_COUNT=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM positions;" 2>/dev/null)
+        POSITION_COUNT=${POSITION_COUNT:-0}
+    fi
     if [ "$POSITION_COUNT" -lt 5 ]; then
         log "WARNING: Low position count - $POSITION_COUNT"
         health_score=$((health_score - 20))
     fi
     
     # Check agent log activity
-    if is_recent "$AGENT_LOG" $((MAX_TRADE_GAP / 2)); then
+    if is_older_than "$AGENT_LOG" $((MAX_TRADE_GAP / 2)); then
         log "WARNING: Agent log not updated in over $((MAX_TRADE_GAP / 2 / 60)) minutes"
         health_score=$((health_score - 15))
     fi
     
     # Check agent process
-    AGENT_PID=$(ps aux | grep -v grep | grep "python3 -u ibis_true_agent.py" | awk '{print $2}')
+    AGENT_PID=$(find_agent_pid || true)
     if [ -z "$AGENT_PID" ]; then
         log "CRITICAL: Agent process not running"
         health_score=0
     else
         # Check agent resources
-        CPU_USAGE=$(ps -o %cpu -p "$AGENT_PID" 2>/dev/null | grep -v %cpu)
-        MEM_USAGE=$(ps -o rss -p "$AGENT_PID" 2>/dev/null | grep -v RSS)
-        
-        if (( $(echo "$CPU_USAGE > $MAX_CPU" | bc -l) )); then
+        CPU_USAGE=$(ps -o %cpu= -p "$AGENT_PID" 2>/dev/null | xargs)
+        MEM_USAGE=$(ps -o rss= -p "$AGENT_PID" 2>/dev/null | xargs)
+        CPU_USAGE=${CPU_USAGE:-0}
+        MEM_USAGE=${MEM_USAGE:-0}
+
+        if awk "BEGIN {exit !($CPU_USAGE > $MAX_CPU)}"; then
             log "WARNING: Agent CPU usage too high - ${CPU_USAGE%.*}%"
             health_score=$((health_score - 25))
         fi
-        
+
         if [ "$MEM_USAGE" -gt $((1024 * 1024)) ]; then  # >1GB
             log "WARNING: Agent memory usage too high - $((MEM_USAGE / 1024)) MB"
             health_score=$((health_score - 20))
         fi
     fi
-    
-    return $health_score
+
+    # Return via stdout so callers can safely consume full score range.
+    echo "$health_score"
+    return 0
 }
 
 # Attempt to restart agent
@@ -92,18 +137,25 @@ restart_agent() {
     log "INFO: Attempting agent restart"
     
     # Stop any existing agent processes
-    pkill -f "python3 -u ibis_true_agent.py" 2>/dev/null
+    existing_pid=$(find_agent_pid || true)
+    if [ -n "$existing_pid" ]; then
+        kill "$existing_pid" 2>/dev/null
+    fi
     sleep 2
     
     # Clean up old PID file
-    rm -f ibis_true_agent.pid
+    rm -f "$PID_FILE"
+
+    # Ensure working directory and environment are consistent
+    cd "$SCRIPT_DIR" || return 1
+    load_env_files
     
     # Start new agent process
-    nohup python3 -u ibis_true_agent.py > ibis_true_agent.log 2>&1 < /dev/null &
+    nohup python3 -u "$SCRIPT_DIR/ibis_true_agent.py" > "$AGENT_LOG" 2>&1 < /dev/null &
     AGENT_PID=$!
     
     if [ $? -eq 0 ]; then
-        echo $AGENT_PID > ibis_true_agent.pid
+        echo $AGENT_PID > "$PID_FILE"
         log "SUCCESS: Agent restarted with PID $AGENT_PID"
     else
         log "ERROR: Agent restart failed"
@@ -119,17 +171,27 @@ recover_database() {
         return 1
     fi
     
-    # Clean existing database and recreate from state file
+    # Clean existing database and recreate from state file under DB lock.
+    exec 8>"$DB_LOCK_FILE"
+    if ! flock -n 8; then
+        log "WARNING: DB lock busy, skipping recovery this cycle"
+        return 1
+    fi
     rm -f "$DB_FILE"
-    python3 << 'PYTHON'
+    BASE_DIR="$SCRIPT_DIR" python3 << 'PYTHON'
 import json
+import os
 import sqlite3
 from datetime import datetime
 
-with open('data/ibis_true_state.json', 'r') as f:
+base_dir = os.environ["BASE_DIR"]
+state_path = os.path.join(base_dir, "data", "ibis_true_state.json")
+db_path = os.path.join(base_dir, "data", "ibis_v8.db")
+
+with open(state_path, 'r') as f:
     state = json.load(f)
 
-conn = sqlite3.connect('data/ibis_v8.db')
+conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 
 # Create tables
@@ -178,7 +240,7 @@ for symbol, pos in state['positions'].items():
                                unrealized_pnl_pct, opened_at, mode)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
-        f"{symbol}-USDT",
+        symbol,
         pos['quantity'],
         pos['buy_price'],
         pos['current_price'],
@@ -197,6 +259,7 @@ PYTHON
     else
         log "ERROR: Database recovery failed"
     fi
+    flock -u 8
 }
 
 # Check and clean up old files
@@ -219,6 +282,13 @@ clean_up() {
 }
 
 # Main monitoring loop
+mkdir -p "$SCRIPT_DIR/data"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+    log "Another ibis_247_monitor instance is already running, exiting"
+    exit 0
+fi
+
 echo "=== IBIS TRUE AGENT 24/7 MONITOR ===" >> "$LOG_FILE"
 echo "Started: $(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
 echo "Configuration: MAX_CRASHES=$MAX_CRASHES, CRASH_WINDOW=$CRASH_WINDOW, MAX_DB_LAG=$MAX_DB_LAG" >> "$LOG_FILE"
@@ -231,9 +301,18 @@ while true; do
     
     # Check health
     HEALTH=$(check_health)
+    HEALTH=${HEALTH:-0}
     
     if [ $HEALTH -lt 60 ]; then
         log "CRITICAL: Health score $HEALTH - initiating recovery"
+
+        if service_is_active; then
+            log "INFO: $SERVICE_NAME is active - skipping local restart/recovery actions to avoid conflicts"
+            ./batch_monitor.sh >> "$BATCH_LOG"
+            clean_up
+            sleep 300
+            continue
+        fi
         
         CRASH_COUNT=$((CRASH_COUNT + 1))
         

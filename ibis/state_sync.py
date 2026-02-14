@@ -8,6 +8,7 @@ This ensures real-time updates for monitoring tools.
 import asyncio
 import json
 import os
+import fcntl
 from datetime import datetime
 from typing import Dict
 
@@ -23,6 +24,7 @@ class StateSynchronizer:
         state_file: str = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true_state.json",
     ):
         self.state_file = state_file
+        self.state_lock_file = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_state.lock"
         self.db = IbisDB()
         self.client = get_kucoin_client()
         self.running = False
@@ -31,6 +33,7 @@ class StateSynchronizer:
         """Sync database state to JSON file."""
         try:
             os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
+            os.makedirs(os.path.dirname(self.state_lock_file), exist_ok=True)
 
             positions = self.db.get_open_positions()
 
@@ -78,29 +81,56 @@ class StateSynchronizer:
             balances = await self.client.get_all_balances()
             usdt_available = float(balances.get("USDT", {}).get("available", 0))
 
-            # Build state
-            state = {
-                "positions": positions_with_prices,
-                "daily": {
+            # Merge into existing state (avoid clobbering unrelated fields like capital_awareness).
+            with open(self.state_lock_file, "w") as lock_f:
+                fcntl.flock(lock_f, fcntl.LOCK_EX)
+                existing_state = {}
+                if os.path.exists(self.state_file):
+                    try:
+                        with open(self.state_file, "r") as f:
+                            existing_state = json.load(f)
+                    except Exception:
+                        existing_state = {}
+
+                daily_existing = existing_state.get("daily", {})
+                daily_merged = {
+                    **daily_existing,
                     "date": datetime.now().strftime("%Y-%m-%d"),
                     "trades": len(trades),
                     "wins": wins,
                     "losses": losses,
                     "pnl": pnl,
-                    "start_balance": 0.0,
-                    "regimes_experienced": {},
-                    "strategies_tried": {},
-                },
-                "market_regime": "unknown",
-                "agent_mode": "ROTATING",
-                "updated": datetime.now().isoformat(),
-                "usdt_available": usdt_available,
-                "total_positions": len(positions),
-            }
+                }
+                if "start_balance" not in daily_merged:
+                    daily_merged["start_balance"] = 0.0
+                if "regimes_experienced" not in daily_merged:
+                    daily_merged["regimes_experienced"] = {}
+                if "strategies_tried" not in daily_merged:
+                    daily_merged["strategies_tried"] = {}
 
-            # Write to file
-            with open(self.state_file, "w") as f:
-                json.dump(state, f, indent=2)
+                state = {
+                    **existing_state,
+                    "positions": positions_with_prices,
+                    "daily": daily_merged,
+                    "updated": datetime.now().isoformat(),
+                    "usdt_available": usdt_available,
+                    "total_positions": len(positions),
+                }
+
+                if "market_regime" not in state:
+                    state["market_regime"] = "unknown"
+                if "agent_mode" not in state:
+                    state["agent_mode"] = "ROTATING"
+                if "capital_awareness" not in state:
+                    state["capital_awareness"] = {}
+
+                tmp_path = f"{self.state_file}.tmp"
+                with open(tmp_path, "w") as f:
+                    json.dump(state, f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, self.state_file)
+                fcntl.flock(lock_f, fcntl.LOCK_UN)
 
             return True
 

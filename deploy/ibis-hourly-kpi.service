@@ -1,0 +1,11 @@
+[Unit]
+Description=IBIS Hourly KPI Snapshot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/projects/ibis_trader
+ExecStart=/bin/bash -lc /root/projects/ibis_trader/run_hourly_kpi_report.sh
+Nice=10

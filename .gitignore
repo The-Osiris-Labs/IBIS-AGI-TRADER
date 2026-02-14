@@ -26,6 +26,8 @@ keys.env
 data/ibis_true_state.json
 data/ibis_true_memory.json
 data/ibis_true.log*
+data/*.lock
+*.pid
 
 # Database (runtime)
 *.db

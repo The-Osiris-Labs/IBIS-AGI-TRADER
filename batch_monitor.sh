@@ -3,13 +3,19 @@
 # Batch Write System Monitor
 # Runs every 5 minutes to check system health
 
-MONITOR_LOG="batch_monitor.log"
-DB_FILE="data/ibis_v8.db"
-STATE_FILE="data/ibis_true_state.json"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MONITOR_LOG="$SCRIPT_DIR/batch_monitor.log"
+DB_FILE="$SCRIPT_DIR/data/ibis_v8.db"
+STATE_FILE="$SCRIPT_DIR/data/ibis_true_state.json"
+AGENT_REGEX="/root/projects/(ibis_trader|Dont enter unless solicited/AGI Trader)/ibis_true_agent.py"
 
 # Function to log messages
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$MONITOR_LOG"
+}
+
+find_agent_pid() {
+    pgrep -f "$AGENT_REGEX" 2>/dev/null | head -n 1
 }
 
 # Check if batch writer is active by tracking file writes
@@ -33,15 +39,30 @@ check_system_activity() {
 check_database() {
     if [ -f "$DB_FILE" ]; then
         echo "=== Database Status ==="
-        
-        POSITION_COUNT=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM positions;" 2>/dev/null)
-        TRADE_COUNT=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM trades;" 2>/dev/null)
+        local has_positions has_trades
+        has_positions=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='positions';" 2>/dev/null)
+        has_trades=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='trades';" 2>/dev/null)
+
+        POSITION_COUNT=0
+        TRADE_COUNT=0
+        if [ "$has_positions" = "1" ]; then
+            POSITION_COUNT=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM positions;" 2>/dev/null)
+            POSITION_COUNT=${POSITION_COUNT:-0}
+        fi
+        if [ "$has_trades" = "1" ]; then
+            TRADE_COUNT=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM trades;" 2>/dev/null)
+            TRADE_COUNT=${TRADE_COUNT:-0}
+        fi
         
         echo "Positions: $POSITION_COUNT"
         echo "Trades: $TRADE_COUNT"
         
         # Check for negative positions
-        NEGATIVE_POSITIONS=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM positions WHERE quantity < 0;" 2>/dev/null)
+        NEGATIVE_POSITIONS=0
+        if [ "$has_positions" = "1" ]; then
+            NEGATIVE_POSITIONS=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM positions WHERE quantity < 0;" 2>/dev/null)
+            NEGATIVE_POSITIONS=${NEGATIVE_POSITIONS:-0}
+        fi
         if [ "$NEGATIVE_POSITIONS" -gt 0 ]; then
             echo "⚠️ Negative positions: $NEGATIVE_POSITIONS"
         fi
@@ -53,7 +74,7 @@ check_database() {
 check_agent() {
     echo "=== Agent Status ==="
     
-    AGENT_PID=$(ps aux | grep -v grep | grep "python3 -u ibis_true_agent.py" | awk '{print $2}')
+    AGENT_PID=$(find_agent_pid || true)
     if [ -n "$AGENT_PID" ]; then
         echo "Agent PID: $AGENT_PID"
         
@@ -63,7 +84,11 @@ check_agent() {
             echo "$AGENT_STATS"
         fi
     else
-        echo "⚠️ Agent process not found"
+        if systemctl is-active --quiet ibis-agent.service 2>/dev/null; then
+            echo "⚠️ Agent PID not found by pattern, but ibis-agent.service is active"
+        else
+            echo "⚠️ Agent process not found"
+        fi
     fi
 }
 

@@ -1,0 +1,11 @@
+[Unit]
+Description=IBIS Execution Integrity Check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/projects/ibis_trader
+ExecStart=/bin/bash -lc /root/projects/ibis_trader/run_execution_integrity_check.sh
+Nice=10

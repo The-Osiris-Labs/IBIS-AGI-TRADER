@@ -1,0 +1,11 @@
+[Unit]
+Description=IBIS log retention maintenance
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/projects/ibis_trader
+ExecStart=/bin/bash -lc /root/projects/ibis_trader/tools/log_retention_maintenance.sh
+Nice=15

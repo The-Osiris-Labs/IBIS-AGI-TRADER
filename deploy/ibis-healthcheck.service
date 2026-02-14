@@ -1,0 +1,12 @@
+[Unit]
+Description=IBIS Health/Reconciliation Check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/projects/ibis_trader
+ExecStart=/bin/bash -lc /root/projects/ibis_trader/run_health_check.sh
+Nice=10
+
