@@ -247,6 +247,7 @@ class IBISTrueAgent:
         self.agent_memory.setdefault("recycle_close_ts", {})
         self.agent_memory.setdefault("buy_reentry_cooldown_until", {})
         self.agent_memory.setdefault("stale_buy_cancel_counts", {})
+        self.agent_memory.setdefault("stale_buy_last_cancel", {})
         self._last_db_sync_ts = 0.0
         self._symbol_fee_profile = {}
         self._symbol_fee_counts = {}
@@ -357,8 +358,11 @@ class IBISTrueAgent:
             "max_open_buy_orders": 8,
             "stale_buy_pressure_relief_seconds": 45,
             "stale_buy_pressure_trigger": 4,
+            "stale_buy_hard_seconds": 120,
             "stale_buy_reentry_cooldown_seconds": 75,
             "stale_buy_reentry_cooldown_max_seconds": 240,
+            "stale_buy_reentry_price_window_seconds": 300,
+            "stale_buy_reentry_price_improvement_bps": 8,
             "entry_admission_enabled": True,
             "entry_admission_min_edge": 45.0,
             "entry_admission_fee_penalty_points": 4000.0,
@@ -370,6 +374,7 @@ class IBISTrueAgent:
             "recycle_max_closes_per_cycle": 1,
             "recycle_symbol_cooldown_seconds": 300,
             "recycle_min_hold_seconds": 120,
+            "recycle_requires_empty_buy_queue": True,
         }
 
         # Load saved state first, then initialize defaults
@@ -1335,6 +1340,45 @@ class IBISTrueAgent:
         counts = self.agent_memory.setdefault("stale_buy_cancel_counts", {})
         if symbol in counts:
             counts.pop(symbol, None)
+
+    def _record_stale_buy_cancel(self, symbol: str, reference_price: float) -> None:
+        last = self.agent_memory.setdefault("stale_buy_last_cancel", {})
+        last[symbol] = {
+            "ts": time.time(),
+            "price": float(reference_price or 0.0),
+        }
+        # Keep map bounded to avoid unbounded memory growth.
+        if len(last) > 400:
+            oldest = sorted(last.items(), key=lambda x: float((x[1] or {}).get("ts", 0)))[:120]
+            for sym, _ in oldest:
+                last.pop(sym, None)
+
+    def _stale_reentry_price_guard(self, symbol: str, current_price: float) -> tuple:
+        """
+        Skip re-entry shortly after stale cancel unless price has improved enough.
+        For buys, improvement means a lower price than previous canceled price.
+        """
+        last = self.agent_memory.get("stale_buy_last_cancel", {}) or {}
+        row = last.get(symbol, {}) or {}
+        ts = float(row.get("ts", 0) or 0)
+        old_price = float(row.get("price", 0) or 0)
+        if ts <= 0 or old_price <= 0 or current_price <= 0:
+            return False, ""
+
+        age = time.time() - ts
+        window = max(0, int(self.config.get("stale_buy_reentry_price_window_seconds", 300)))
+        if age > window:
+            return False, ""
+
+        improvement_bps = float(self.config.get("stale_buy_reentry_price_improvement_bps", 8))
+        required_price = old_price * (1 - (improvement_bps / 10000.0))
+        if current_price <= required_price:
+            return False, ""
+
+        return (
+            True,
+            f"price guard ({age:.0f}s/{window}s): current {current_price:.8f} > required {required_price:.8f}",
+        )
 
     async def get_holdings_intelligence(self) -> Dict:
         """
@@ -4823,6 +4867,12 @@ class IBISTrueAgent:
         stale_buy_seconds = int(self.config.get("stale_buy_cancel_seconds", 90))
         pressure_relief_seconds = int(self.config.get("stale_buy_pressure_relief_seconds", 45))
         pressure_trigger = int(self.config.get("stale_buy_pressure_trigger", 4))
+        stale_buy_hard_seconds = int(
+            self.config.get(
+                "stale_buy_hard_seconds",
+                max(stale_buy_seconds * 2, pressure_relief_seconds),
+            )
+        )
         stale_buy_max_per_cycle = int(self.config.get("stale_buy_cancel_max_per_cycle", 3))
         min_trade_capital = float(TRADING.POSITION.MIN_CAPITAL_PER_TRADE)
         available_usdt = float(
@@ -4933,6 +4983,7 @@ class IBISTrueAgent:
 
                     # Successful fill clears stale-cancel escalation history for this symbol.
                     self._reset_stale_buy_cancel_count(symbol)
+                    self.agent_memory.setdefault("stale_buy_last_cancel", {}).pop(symbol, None)
                     self._save_memory()
 
                     # Delete the pending order regardless
@@ -4948,11 +4999,16 @@ class IBISTrueAgent:
                     age_seconds = (
                         max(0.0, (time.time() * 1000 - created_at) / 1000.0) if created_at > 0 else 0
                     )
-                    if deal_size <= 0 and created_at > 0 and age_seconds >= stale_buy_seconds:
+                    soft_stale = age_seconds >= stale_buy_seconds and (
+                        under_capital_pressure or len(buy_orders) >= pressure_trigger
+                    )
+                    hard_stale = age_seconds >= stale_buy_hard_seconds
+                    if deal_size <= 0 and created_at > 0 and (soft_stale or hard_stale):
                         try:
                             await self.client.cancel_order(order_id)
                             self.log_event(
-                                f"   [STALE BUY CANCELED] {symbol}: age={age_seconds:.0f}s >= {stale_buy_seconds}s | "
+                                f"   [STALE BUY CANCELED] {symbol}: age={age_seconds:.0f}s | "
+                                f"soft={soft_stale} hard={hard_stale} (soft>={stale_buy_seconds}s hard>={stale_buy_hard_seconds}s) | "
                                 f"avail=${available_usdt:.2f} | pending={len(buy_orders)} | pressure={under_capital_pressure}"
                             )
                             if symbol in buy_orders:
@@ -4967,6 +5023,9 @@ class IBISTrueAgent:
                             daily["stale_buy_cancels"] = prev_stale_cancels + 1
                             reentry_cooldown_seconds = self._next_stale_buy_reentry_cooldown(symbol)
                             self._mark_buy_reentry_cooldown(symbol, reentry_cooldown_seconds)
+                            self._record_stale_buy_cancel(
+                                symbol, float(order_info.get("price", 0) or order.price or 0)
+                            )
                             canceled_count += 1
                             self._save_state()
                             self._save_memory()
@@ -6697,6 +6756,9 @@ class IBISTrueAgent:
                     pending_buys_now = len(
                         self.state.get("capital_awareness", {}).get("buy_orders", {}) or {}
                     )
+                    recycle_requires_empty_buy_queue = bool(
+                        self.config.get("recycle_requires_empty_buy_queue", True)
+                    )
                     if pending_buys_now >= max_open_buy_orders:
                         self.log_event(
                             f"   🧱 QUEUE GUARD: pending buys {pending_buys_now}/{max_open_buy_orders}, deferring new entries this cycle"
@@ -6712,6 +6774,11 @@ class IBISTrueAgent:
                         and strategy["available"] < min_trade_capital
                         and opportunity["score"] >= 70
                     ):
+                        if recycle_requires_empty_buy_queue and pending_buys_now > 0:
+                            self.log_event(
+                                f"   🧱 RECYCLE DEFERRED: pending buys={pending_buys_now}, waiting for queue to clear before recycling capital"
+                            )
+                            continue
                         self.log_event(
                             f"   🔱 CAPITAL RECYCLING: ${strategy['available']:.2f} available for {opportunity['symbol']} (Score: {opportunity['score']:.0f})"
                         )
@@ -6773,6 +6840,11 @@ class IBISTrueAgent:
                         and (strategy["available"] < min_trade_capital)
                         and is_strong
                     ):
+                        if recycle_requires_empty_buy_queue and pending_buys_now > 0:
+                            self.log_event(
+                                f"   🧱 ALPHA RECYCLE DEFERRED: pending buys={pending_buys_now}, skipping recycle this cycle"
+                            )
+                            continue
                         self.log_event(
                             f"   🔱 STRONG SIGNAL: {opportunity['symbol']} (Score: {opportunity['score']:.0f}). Clearing stagnant capital..."
                         )
@@ -6929,6 +7001,16 @@ class IBISTrueAgent:
                         if cooldown_remaining > 0:
                             self.log_event(
                                 f"   🧊 SKIPPING: Reentry cooldown active for {symbol} ({cooldown_remaining:.0f}s remaining)"
+                            )
+                            continue
+
+                        current_price = float(opportunity.get("price", 0) or 0)
+                        price_guard_skip, price_guard_reason = self._stale_reentry_price_guard(
+                            symbol, current_price
+                        )
+                        if price_guard_skip:
+                            self.log_event(
+                                f"   🧊 SKIPPING: Reentry price guard for {symbol} - {price_guard_reason}"
                             )
                             continue
 
