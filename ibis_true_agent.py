@@ -16,6 +16,7 @@ import argparse
 import sys
 import time
 import math
+from decimal import Decimal, ROUND_DOWN, ROUND_UP, InvalidOperation
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from ibis.exchange.kucoin_client import get_kucoin_client
@@ -49,28 +50,50 @@ from ibis.indicators.indicators import (
 
 
 def round_down_to_increment(qty: float, increment: float) -> float:
-    """Round DOWN to nearest increment, handling floating point precision."""
-    if increment <= 0 or increment is None:
-        return qty
+    """Round down to nearest increment using Decimal-safe math."""
+    if increment is None or increment <= 0:
+        return float(qty)
     try:
-        inc_str = str(increment)
-        if "." in inc_str:
-            decimals = len(inc_str.split(".")[-1])
-        else:
-            decimals = 0
-        scale = 10**decimals
-        scaled_qty = round(qty * scale, 10)
-        scaled_inc = round(increment * scale, 10)
+        qty_d = Decimal(str(qty))
+        inc_d = Decimal(str(increment))
+        if inc_d <= 0:
+            return float(qty_d)
+        steps = (qty_d / inc_d).to_integral_value(rounding=ROUND_DOWN)
+        return float(steps * inc_d)
+    except (InvalidOperation, ValueError, TypeError) as e:
+        print(f"⚠️ Round-down error: {e}")
+        return float(qty)
 
-        if scaled_inc == 0:
-            return qty
 
-        scaled_result = (int(scaled_qty) // int(scaled_inc)) * int(scaled_inc)
-        result = scaled_result / scale
-        return round(result, decimals)
+def round_up_to_increment(qty: float, increment: float) -> float:
+    """Round up to nearest increment using Decimal-safe math."""
+    if increment is None or increment <= 0:
+        return float(qty)
+    try:
+        qty_d = Decimal(str(qty))
+        inc_d = Decimal(str(increment))
+        if inc_d <= 0:
+            return float(qty_d)
+        steps = (qty_d / inc_d).to_integral_value(rounding=ROUND_UP)
+        return float(steps * inc_d)
+    except (InvalidOperation, ValueError, TypeError) as e:
+        print(f"⚠️ Round-up error: {e}")
+        return float(qty)
+
+
+def format_decimal_for_increment(value: float, increment: float) -> float:
+    """Format value to increment precision without scientific notation drift."""
+    try:
+        inc_d = Decimal(str(increment))
+        val_d = Decimal(str(value))
+        if inc_d <= 0:
+            return float(val_d)
+        decimals = max(0, -inc_d.as_tuple().exponent)
+        quant = Decimal("1").scaleb(-decimals)
+        return float(val_d.quantize(quant))
     except Exception as e:
-        print(f"⚠️ Round error: {e}")
-        return qty
+        print(f"⚠️ Format error: {e}")
+        return float(value)
 
 
 def print_banner():
@@ -1292,6 +1315,7 @@ class IBISTrueAgent:
                         "baseIncrement": float(sym.get("baseIncrement", 0.000001)),
                         "quoteMinSize": float(sym.get("quoteMinSize", 0.1)),
                         "quoteIncrement": float(sym.get("quoteIncrement", 0.0001)),
+                        "priceIncrement": float(sym.get("priceIncrement", 0.000001)),
                     }
 
                 except:
@@ -1560,6 +1584,7 @@ class IBISTrueAgent:
                         "baseIncrement": float(sym.get("baseIncrement", 0.000001)),
                         "quoteMinSize": float(sym.get("quoteMinSize", 0.1)),
                         "quoteIncrement": float(sym.get("quoteIncrement", 0.0001)),
+                        "priceIncrement": float(sym.get("priceIncrement", 0.000001)),
                     }
 
                     fresh_symbols.append(base_currency)
@@ -3655,7 +3680,7 @@ class IBISTrueAgent:
                 # Get AGI brain analysis
                 agi_signal = await self.agi_brain.comprehensive_analysis(context)
                 self.log_event(
-                    f"      🧠 AGI Analysis: {intel['symbol']} - Action: {agi_signal.action}, Confidence: {agi_signal.confidence:.1f}%, Risk: {agi_signal.risk_reward:.2f}"
+                    f"      🧠 AGI Analysis: {intel['symbol']} - Action: {agi_signal.action}, Confidence: {agi_signal.confidence * 100:.1f}%, Risk: {agi_signal.risk_reward:.2f}"
                 )
                 self.log_event(
                     f"      🧠 Confluences: {len(agi_signal.confluences)} factors, Model Consensus: {len(agi_signal.model_consensus)} models"
@@ -3691,7 +3716,7 @@ class IBISTrueAgent:
                 intel["agi_signal"] = agi_signal
                 # Convert TradeSignal to dict for compatibility
                 agi_signal_dict = agi_signal.__dict__
-                agi_score = agi_signal_dict.get("confidence", 50)
+                agi_score = agi_signal_dict.get("confidence", 0.5) * 100
                 # Bypass recommendation logic - ALWAYS BUY for high scores
                 if score >= 90:
                     agi_action = "STRONG_BUY"
@@ -3826,6 +3851,7 @@ class IBISTrueAgent:
         base_increment = float(rules.get("baseIncrement", 0.000001))
         base_min_size = float(rules.get("baseMinSize", 0.001))
         quote_min_size = float(rules.get("quoteMinSize", 0.1))
+        price_increment = float(rules.get("priceIncrement", rules.get("quoteIncrement", 0.0000001)))
         available_for_trade = strategy["available"]
 
         # Determine minimum position value - check if this could be final trade
@@ -3849,7 +3875,7 @@ class IBISTrueAgent:
         if quantity < base_min_size:
             quantity = base_min_size
 
-        quantity = round(quantity, 8)
+        quantity = format_decimal_for_increment(quantity, base_increment)
 
         # Final check - enforce minimum position size with tolerance for floating point
         final_order_value = quantity * price
@@ -3973,8 +3999,8 @@ class IBISTrueAgent:
             print(f"⚠️ Pending order already exists for {symbol} - skipping duplicate")
             return None
 
-        actual_value = quantity * price
         min_trade_value = TRADING.EXECUTION.MIN_TRADE_VALUE
+        actual_value = quantity * price
         # Add small epsilon for floating-point precision
         if actual_value < min_trade_value - 0.01:
             print(
@@ -4023,37 +4049,38 @@ class IBISTrueAgent:
                 discount_pct = 0.002  # 0.2% below current price
                 suggested_price = price * (1 - discount_pct)
 
-                # Round price to valid increment based on symbol rules
-                rules = self.symbol_rules.get(symbol, {})
-                price_increment = float(rules.get("priceIncrement", 0.0000001))
+                # Round price to valid increment based on symbol rules.
+                # Use downward rounding for buy limits to avoid crossing.
                 if price_increment > 0:
-                    # Calculate exact number of increments
-                    num_increments = round(suggested_price / price_increment)
-                    suggested_price = num_increments * price_increment
-                    # Ensure price is at least the minimum tick
+                    suggested_price = round_down_to_increment(suggested_price, price_increment)
                     suggested_price = max(suggested_price, price_increment)
-                    # Format price to appropriate number of decimal places
-                    # Format price to appropriate number of decimal places - handle scientific notation
-                    decimal_places = 0
-                    inc_str = repr(price_increment)
-                    if "e-" in inc_str.lower():
-                        # Handle scientific notation like 1e-05
-                        parts = inc_str.lower().split("e-")
-                        decimal_places = int(parts[1])
-                    elif "." in inc_str:
-                        # Handle decimal notation like 0.001
-                        decimal_str = inc_str.split(".")[-1].rstrip("0")
-                        decimal_places = len(decimal_str) if decimal_str else 0
-                    decimal_places = max(1, decimal_places)
-
-                    suggested_price = round(suggested_price, decimal_places)
+                    suggested_price = format_decimal_for_increment(suggested_price, price_increment)
 
                 self.log_event(
                     f"      🚀 EXECUTING LIMIT buy for {symbol} @ ${suggested_price:.8f} (${price:.6f} - 0.2%)..."
                 )
 
-                # Re-check against minimum using the ACTUAL submitted limit price.
+                # Ensure submitted limit notional respects the hard minimum.
+                required_notional = min_trade_value + 0.01
                 actual_limit_value = quantity * suggested_price
+                if actual_limit_value < required_notional:
+                    required_qty = required_notional / max(suggested_price, 1e-12)
+                    quantity = round_up_to_increment(required_qty, base_increment)
+                    quantity = max(quantity, base_min_size)
+                    quantity = format_decimal_for_increment(quantity, base_increment)
+                    actual_limit_value = quantity * suggested_price
+                    self.log_event(
+                        f"      🔧 ADJUSTED QTY FOR MIN NOTIONAL: qty={quantity:.8f}, value=${actual_limit_value:.2f}"
+                    )
+
+                max_affordable = available_for_trade * 0.995
+                if actual_limit_value > max_affordable + 1e-9:
+                    self.log_event(
+                        f"      🛑 LIMIT NOTIONAL EXCEEDS AVAILABLE: ${actual_limit_value:.2f} > ${max_affordable:.2f}"
+                    )
+                    return None
+
+                # Re-check against minimum using the ACTUAL submitted limit price.
                 if actual_limit_value < min_trade_value - 0.01:
                     self.log_event(
                         f"      🛑 LIMIT VALUE TOO LOW: ${actual_limit_value:.2f} < ${min_trade_value:.2f} minimum for {symbol}"
