@@ -54,6 +54,20 @@ async def _fetch_live_open_sells() -> List[Dict]:
     return live
 
 
+async def _fetch_live_open_sells_with_retry(max_attempts: int = 3, base_delay: float = 1.0) -> List[Dict]:
+    last_exc: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return await _fetch_live_open_sells()
+        except Exception as exc:
+            last_exc = exc
+            if attempt < max_attempts:
+                await asyncio.sleep(base_delay * attempt)
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("live open sell fetch failed")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="IBIS execution integrity check")
     parser.add_argument("--state", default="data/ibis_true_state.json")
@@ -161,7 +175,7 @@ def main() -> int:
 
     if args.live_open_orders:
         try:
-            live_sells = asyncio.run(_fetch_live_open_sells())
+            live_sells = asyncio.run(_fetch_live_open_sells_with_retry())
             info.append(f"live_open_sell_orders={len(live_sells)}")
             live_symbols = {str(o.get('symbol', '')) for o in live_sells if o.get('symbol')}
             stale_live = [
@@ -187,7 +201,7 @@ def main() -> int:
                     "live sell symbols missing in state tracking: " + ",".join(only_live[:10])
                 )
         except Exception as e:
-            warnings.append(f"live open-order parity check skipped: {e}")
+            warnings.append(f"live open-order parity check skipped after retries: {e}")
 
     if len(positions) != int(_num(state.get("total_positions", len(positions)), len(positions))):
         warnings.append("total_positions field not aligned with positions map")

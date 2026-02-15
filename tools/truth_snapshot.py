@@ -74,7 +74,7 @@ async def _live_snapshot() -> Dict:
     }
 
 
-async def _live_snapshot_with_retry(max_attempts: int = 3, base_delay: float = 1.0) -> Dict:
+async def _live_snapshot_with_retry(max_attempts: int = 5, base_delay: float = 1.0) -> Dict:
     last_exc: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:
