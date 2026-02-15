@@ -653,6 +653,14 @@ class IBISTrueAgent:
             "avg_buy_fill_latency_seconds": 0.0,
             "buy_fill_samples": 0,
             "avg_fill_rate": 0.0,
+            "synced_weekly_pnl": 0.0,
+            "synced_weekly_trades": 0,
+            "synced_weekly_wins": 0,
+            "synced_weekly_losses": 0,
+            "synced_monthly_pnl": 0.0,
+            "synced_monthly_trades": 0,
+            "synced_all_time_pnl": 0.0,
+            "synced_pnl_updated": "",
         }
 
     async def update_positions_awareness(self) -> Dict:
@@ -1662,15 +1670,22 @@ class IBISTrueAgent:
             monthly = self.pnl_tracker.get_monthly_pnl()
             all_time = self.pnl_tracker.get_all_time_pnl()
 
-            # Update daily stats from trade history
-            self.state["daily"]["pnl"] = weekly["pnl"]
-            self.state["daily"]["trades"] = weekly["trades"]
-            self.state["daily"]["wins"] = weekly["wins"]
-            self.state["daily"]["losses"] = weekly["losses"]
+            # Store exchange-synced aggregates in dedicated fields.
+            # Do not overwrite true day-scoped runtime counters used by live execution/adaptation.
+            daily_stats = self.state.setdefault("daily", {})
+            daily_stats["synced_weekly_pnl"] = float(weekly.get("pnl", 0.0))
+            daily_stats["synced_weekly_trades"] = int(weekly.get("trades", 0))
+            daily_stats["synced_weekly_wins"] = int(weekly.get("wins", 0))
+            daily_stats["synced_weekly_losses"] = int(weekly.get("losses", 0))
+            daily_stats["synced_monthly_pnl"] = float(monthly.get("pnl", 0.0))
+            daily_stats["synced_monthly_trades"] = int(monthly.get("trades", 0))
+            daily_stats["synced_all_time_pnl"] = float(all_time.get("pnl", 0.0))
+            daily_stats["synced_pnl_updated"] = datetime.now().isoformat()
 
             self.log_event(
                 f"   ✅ PnL Synced: Weekly ${weekly['pnl']:.2f} ({weekly['trades']} trades, "
-                f"{weekly['wins']}W/{weekly['losses']}L) | Monthly ${monthly['pnl']:.2f}"
+                f"{weekly['wins']}W/{weekly['losses']}L) | Monthly ${monthly['pnl']:.2f} | "
+                f"Daily runtime preserved (${daily_stats.get('realized_pnl', 0.0):+.2f})"
             )
 
             return weekly, monthly, all_time
@@ -3712,7 +3727,9 @@ class IBISTrueAgent:
         """Advanced agent mode determination with adaptive risk management"""
 
         balance = self.state["daily"]["start_balance"]
-        current_pnl = self.state["daily"]["pnl"]
+        current_pnl = float(
+            self.state["daily"].get("realized_pnl", self.state["daily"].get("pnl", 0.0))
+        )
 
         if balance > 0:
             return_pct = current_pnl / balance
@@ -3720,9 +3737,16 @@ class IBISTrueAgent:
             return_pct = 0
 
         # Calculate additional performance metrics
-        total_trades = self.state["daily"]["trades"]
-        win_rate = (self.state["daily"]["wins"] / total_trades) if total_trades > 0 else 0
-        loss_rate = (self.state["daily"]["losses"] / total_trades) if total_trades > 0 else 0
+        total_trades = int(self.state["daily"].get("orders_filled", self.state["daily"].get("trades", 0)))
+        wins = int(self.state["daily"].get("wins", 0))
+        losses = int(self.state["daily"].get("losses", 0))
+        wl_samples = wins + losses
+        if wl_samples > 0 and wl_samples <= max(5, total_trades * 2):
+            win_rate = wins / wl_samples
+            loss_rate = losses / wl_samples
+        else:
+            win_rate = 0
+            loss_rate = 0
 
         # 🛡️ TRASH MARKET DETECTION: Don't force trades in bad conditions
         # Calculate average market quality
@@ -6024,8 +6048,8 @@ class IBISTrueAgent:
         adaptations = []
         previous_mode = self.state.get("agent_mode", "unknown")
 
-        trades = self.state["daily"]["trades"]
-        pnl = self.state["daily"]["pnl"]
+        trades = int(self.state["daily"].get("orders_filled", self.state["daily"].get("trades", 0)))
+        pnl = float(self.state["daily"].get("realized_pnl", self.state["daily"].get("pnl", 0.0)))
         balance = self.state["daily"]["start_balance"]
 
         if balance > 0:
@@ -6372,12 +6396,17 @@ class IBISTrueAgent:
             f"   │ {'   ├─ Total Holdings:':<30} {len(holdings_all):<20} {'Total Value:':<25} ${positions_value:.2f} │"
         )
         print(
-            f"   │ {'   ├─ Trades Today:':<30} {daily['trades']:<20} {'Closed P&L:':<25} ${self.state['daily']['pnl']:+.4f} │"
+            f"   │ {'   ├─ Trades Today:':<30} {daily.get('orders_filled', daily.get('trades', 0)):<20} {'Closed P&L:':<25} ${daily.get('realized_pnl', daily.get('pnl', 0.0)):+.4f} │"
+        )
+        print(
+            f"   │ {'   ├─ Filled Orders Today:':<30} {daily.get('orders_filled', 0):<20} {'Net Realized P&L:':<25} ${daily.get('realized_pnl', 0):+.4f} │"
         )
         print(
             f"   │ {'   ├─ Win Rate:':<30} {win_rate:.1f}%{' ' * 15} {'Win/Loss:':<25} {daily['wins']}W / {daily['losses']}L │"
         )
-        print(f"   │ {'   └─ Realized P&L:':<30} ${daily.get('realized_pnl', 0):+.4f} {'-' * 48} │")
+        print(
+            f"   │ {'   └─ Synced Weekly P&L:':<30} ${daily.get('synced_weekly_pnl', 0):+.4f} {'-' * 48} │"
+        )
         print(f"   │ {'─' * 98}│")
 
         # Display AGI Decision-Making Logic
@@ -7175,14 +7204,13 @@ class IBISTrueAgent:
                                     recycle_min_projected_profit = float(
                                         self.config.get("recycle_min_projected_profit_usdt", 0.03)
                                     )
-                                    # Use ratio-space PnL for execution guards.
-                                    # Stored `unrealized_pnl_pct` is in percentage points.
-                                    pos_pnl = (current_px - buy_px) / buy_px if buy_px > 0 else 0.0
                                     qty = float(pos.get("quantity", 0) or 0)
                                     buy_px = float(pos.get("buy_price", 0) or 0)
                                     current_px = float(pos.get("current_price", 0) or buy_px or 0)
                                     if qty <= 0 or buy_px <= 0 or current_px <= 0:
                                         continue
+                                    # Use ratio-space PnL for recycle guard checks.
+                                    pos_pnl = (current_px - buy_px) / buy_px
                                     est_fees = (
                                         qty * current_px * self._estimate_total_friction_for_symbol(sym)
                                     )
@@ -7201,9 +7229,7 @@ class IBISTrueAgent:
                                     has_better_alternative = (
                                         opportunity["score"] - pos_score
                                     ) > intelligence_gap_threshold
-                                    is_dust = (
-                                        pos.get("quantity", 0) * pos.get("current_price", 0)
-                                    ) < 3.0
+                                    is_dust = (qty * current_px) < 3.0
 
                                     if (
                                         is_paralyzed
