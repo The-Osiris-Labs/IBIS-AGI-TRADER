@@ -342,6 +342,9 @@ class IBISTrueAgent:
             "zombie_max_hold_minutes": 30,
             "zombie_stagnation_band_pct": 0.002,
             "zombie_max_evictions_per_cycle": 1,
+            "zombie_prune_allow_loss": False,
+            "zombie_prune_min_pnl_pct": 0.0,
+            "zombie_prune_min_projected_profit_usdt": 0.02,
             "recycle_capital_trigger_usdt": TRADING.POSITION.MIN_CAPITAL_PER_TRADE,
             "recycle_min_projected_profit_usdt": 0.03,
             "recycle_min_projected_pnl_pct": 0.003,
@@ -5255,6 +5258,11 @@ class IBISTrueAgent:
             max_hold_minutes = float(self.config.get("zombie_max_hold_minutes", 30))
             stagnation_band = float(self.config.get("zombie_stagnation_band_pct", 0.002))
             max_evictions = int(self.config.get("zombie_max_evictions_per_cycle", 1))
+            zombie_allow_loss = bool(self.config.get("zombie_prune_allow_loss", False))
+            zombie_min_pnl_pct = float(self.config.get("zombie_prune_min_pnl_pct", 0.0))
+            zombie_min_projected_profit = float(
+                self.config.get("zombie_prune_min_projected_profit_usdt", 0.02)
+            )
             if max_evictions <= 0:
                 return
 
@@ -5302,9 +5310,27 @@ class IBISTrueAgent:
                 if evicted >= max_evictions:
                     break
 
+                pos = self.state.get("positions", {}).get(sym) or {}
+                qty = float(pos.get("quantity", 0) or 0)
+                buy_price = float(pos.get("buy_price", 0) or 0)
+                if qty <= 0 or buy_price <= 0 or exit_price <= 0:
+                    continue
+                est_fees = qty * exit_price * self._estimate_total_friction_for_symbol(sym)
+                projected_profit = (qty * (exit_price - buy_price)) - est_fees
+                if (not zombie_allow_loss) and (pnl_pct < zombie_min_pnl_pct):
+                    self.log_event(
+                        f"   🛡️ ZOMBIE PRUNE GUARD: skip {sym} pnl={pnl_pct * 100:+.2f}% < {zombie_min_pnl_pct * 100:+.2f}%"
+                    )
+                    continue
+                if projected_profit < zombie_min_projected_profit:
+                    self.log_event(
+                        f"   🛡️ ZOMBIE PRUNE GUARD: skip {sym} projected net ${projected_profit:+.4f} < ${zombie_min_projected_profit:.4f}"
+                    )
+                    continue
+
                 self.log_event(
                     f"   🧹 ZOMBIE PRUNE: {sym} age={age_minutes:.1f}m "
-                    f"pnl={pnl_pct * 100:+.2f}% to free deployable capital"
+                    f"pnl={pnl_pct * 100:+.2f}% projected_net=${projected_profit:+.4f} to free deployable capital"
                 )
                 closed = await self.close_position(
                     sym,
