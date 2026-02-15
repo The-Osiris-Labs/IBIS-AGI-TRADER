@@ -339,6 +339,8 @@ class IBISTrueAgent:
             "stale_reprice_cooldown_seconds": 45,
             "stale_reprice_max_per_cycle": 2,
             "take_profit_force_limit": True,
+            "take_profit_limit_fallback_market": True,
+            "take_profit_limit_wait_seconds": 2,
             "market_entry_score_threshold": 90,
             "market_entry_max_spread": 0.0035,
             "zombie_max_hold_minutes": 30,
@@ -5502,23 +5504,100 @@ class IBISTrueAgent:
                     ),
                     timeout=10.0,
                 )
-                self.state["daily"]["orders_filled"] += 1
-                self.log_event(f"   [CLOSE SUCCESS] {symbol} order filled")
-
-                # Fetch actual order details to get real fees
+                # Fetch order details and require confirmed fills before finalizing close.
                 actual_fee = 0.0
                 actual_fill_price = exit_price
+                filled_qty = 0.0
                 if order_result and order_result.order_id:
-                    await asyncio.sleep(0.5)  # Wait for order to settle
-                    filled_order = await self.client.get_order(
-                        order_result.order_id, f"{symbol}-USDT"
+                    wait_seconds = (
+                        float(self.config.get("take_profit_limit_wait_seconds", 2))
+                        if close_type == "limit"
+                        else 1.0
                     )
-                    if filled_order:
-                        actual_fee = filled_order.fee
-                        actual_fill_price = filled_order.avg_price or exit_price
-                        self.log_event(
-                            f"   [CLOSE FEE] Actual fee: {actual_fee:.6f} USDT, Fill price: {actual_fill_price}"
+                    deadline = time.time() + max(0.5, wait_seconds)
+                    filled_order = None
+                    while time.time() <= deadline:
+                        await asyncio.sleep(0.5)
+                        filled_order = await self.client.get_order(
+                            order_result.order_id, f"{symbol}-USDT"
                         )
+                        if not filled_order:
+                            continue
+                        actual_fee = float(getattr(filled_order, "fee", 0) or 0)
+                        actual_fill_price = float(
+                            getattr(filled_order, "avg_price", 0) or actual_fill_price
+                        )
+                        filled_qty = float(getattr(filled_order, "filled_size", 0) or 0)
+                        if (
+                            str(getattr(filled_order, "status", "")) != "ACTIVE"
+                            or filled_qty >= (quantity * 0.999)
+                        ):
+                            break
+
+                    # TP limit orders that remain unfilled are force-closed with market fallback.
+                    if (
+                        close_type == "limit"
+                        and filled_qty < (quantity * 0.999)
+                        and bool(self.config.get("take_profit_limit_fallback_market", True))
+                    ):
+                        remaining_qty = max(0.0, quantity - filled_qty)
+                        try:
+                            await self.client.cancel_order(order_result.order_id)
+                        except Exception:
+                            pass
+                        if remaining_qty > 0:
+                            self.log_event(
+                                f"   [CLOSE FALLBACK] {symbol}: TP limit unfilled, fallback MARKET for {remaining_qty:.8f}"
+                            )
+                            market_result = await asyncio.wait_for(
+                                self.client.create_order(
+                                    symbol=f"{symbol}-USDT",
+                                    side="sell",
+                                    type="market",
+                                    price=0,
+                                    size=remaining_qty,
+                                ),
+                                timeout=10.0,
+                            )
+                            await asyncio.sleep(0.5)
+                            market_order = await self.client.get_order(
+                                market_result.order_id, f"{symbol}-USDT"
+                            )
+                            if market_order:
+                                market_qty = float(getattr(market_order, "filled_size", 0) or 0)
+                                market_fee = float(getattr(market_order, "fee", 0) or 0)
+                                market_price = float(
+                                    getattr(market_order, "avg_price", 0) or actual_fill_price or exit_price
+                                )
+                                total_qty = filled_qty + market_qty
+                                if total_qty > 0:
+                                    weighted_price = (
+                                        (filled_qty * actual_fill_price) + (market_qty * market_price)
+                                    ) / total_qty
+                                    actual_fill_price = weighted_price
+                                filled_qty = total_qty
+                                actual_fee += market_fee
+
+                # If close wasn't fully filled, keep position with remaining qty and retry next cycle.
+                if filled_qty < (quantity * 0.999):
+                    if filled_qty > 0:
+                        remaining_qty = max(0.0, quantity - filled_qty)
+                        self.state["positions"][symbol]["quantity"] = remaining_qty
+                        self._save_state()
+                        self.log_event(
+                            f"   [CLOSE PARTIAL] {symbol}: filled={filled_qty:.8f}, remaining={remaining_qty:.8f}"
+                        )
+                    else:
+                        self.log_event(
+                            f"   [CLOSE PENDING] {symbol}: order not filled yet, keeping position open"
+                        )
+                    self._closing_symbols.discard(symbol)
+                    return False
+
+                self.state["daily"]["orders_filled"] += 1
+                self.log_event(
+                    f"   [CLOSE SUCCESS] {symbol} filled qty={filled_qty:.8f} @ {actual_fill_price:.8f}"
+                )
 
                 # 🧹 CLEANUP: Remove from buy_orders tracking
                 buy_orders = self.state.get("capital_awareness", {}).get("buy_orders", {})
@@ -5656,16 +5735,17 @@ class IBISTrueAgent:
                     return False
 
             # Calculate REAL PnL from actual fill price and actual fees
-            trade_volume = quantity * actual_fill_price
+            close_qty = float(filled_qty or quantity)
+            trade_volume = close_qty * actual_fill_price
             estimated_fees = trade_volume * self._estimate_total_friction_for_symbol(symbol)
 
             # Use actual fees from KuCoin if available, otherwise estimate
             if actual_fee > 0:
-                pnl = (quantity * (actual_fill_price - pos["buy_price"])) - actual_fee
+                pnl = (close_qty * (actual_fill_price - pos["buy_price"])) - actual_fee
                 fees_used = actual_fee
                 self.log_event(f"   [CLOSE PnL] Using ACTUAL fees: {actual_fee:.6f} USDT")
             else:
-                pnl = (quantity * (actual_fill_price - pos["buy_price"])) - estimated_fees
+                pnl = (close_qty * (actual_fill_price - pos["buy_price"])) - estimated_fees
                 fees_used = estimated_fees
                 self.log_event(f"   [CLOSE PnL] Using ESTIMATED fees: {estimated_fees:.6f} USDT")
 
