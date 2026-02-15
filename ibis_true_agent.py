@@ -4113,7 +4113,8 @@ class IBISTrueAgent:
 
     async def print_dashboard_summary(self, regime, mode, best_opp):
         """One-line dashboard summary for quick monitoring"""
-        pnl = self.state["daily"]["pnl"]
+        daily = self.state.get("daily", {})
+        pnl = float(daily.get("realized_pnl", daily.get("pnl", 0.0)))
         pnl_emoji = "🟢" if pnl >= 0 else "🔴"
         opp_count = (
             sum(1 for d in self.market_intel.values() if d["score"] >= SCORE_THRESHOLDS.GOOD_SETUP)
@@ -6890,12 +6891,15 @@ class IBISTrueAgent:
         """
         try:
             daily = self.state.get("daily", {})
-            current_pnl = daily.get("pnl", 0)
-            trades = daily.get("trades", 0)
+            current_pnl = float(daily.get("realized_pnl", daily.get("pnl", 0.0)))
+            trades = int(daily.get("orders_filled", daily.get("trades", 0)))
 
             # Base risk factors from centralized config
             base_risk = TRADING.RISK.BASE_RISK_PER_TRADE
-            win_rate = daily.get("wins", 0) / trades if trades > 0 else 0.5
+            wins = int(daily.get("wins", 0))
+            losses = int(daily.get("losses", 0))
+            wl_samples = wins + losses
+            win_rate = (wins / wl_samples) if wl_samples > 0 else 0.5
 
             # Adjust based on recent performance
             if current_pnl > 0:
@@ -6920,10 +6924,10 @@ class IBISTrueAgent:
             # Update config
             self.config["risk_per_trade"] = new_risk
 
-            if self.state.get("daily", {}).get("trades", 0) % 10 == 0:
+            if trades > 0 and trades % 10 == 0:
                 self.log_event(
                     f"   🛡️ Adaptive Risk: {new_risk * 100:.2f}%/trade "
-                    f"(PnL: {current_pnl:+.2f}%, WR: {win_rate:.0%})"
+                    f"(PnL: {current_pnl:+.2f}, WR: {win_rate:.0%}, fills: {trades})"
                 )
 
         except Exception as e:
