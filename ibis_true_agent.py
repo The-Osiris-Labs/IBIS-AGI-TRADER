@@ -1886,6 +1886,10 @@ class IBISTrueAgent:
                 volatility = (high_24h - low_24h) / price if high_24h > low_24h else 0.02
 
                 momentum_1h = candle_analysis.get("momentum_1h", 0)
+                momentum_1h_raw = candle_analysis.get("momentum_1h_raw", momentum_1h)
+                momentum_15m = candle_analysis.get("momentum_15m", 0)
+                momentum_5m = candle_analysis.get("momentum_5m", 0)
+                volume_momentum = candle_analysis.get("volume_momentum", 0)
                 # Calculate base score first
                 base_score = self._calculate_technical_strength(momentum_1h, change_24h)
                 indicator_composite = candle_analysis.get("composite_score", 50)
@@ -1894,6 +1898,10 @@ class IBISTrueAgent:
                 symbol_data = {
                     "price": price,
                     "change_1h": momentum_1h,
+                    "momentum_1h_raw": momentum_1h_raw,
+                    "momentum_15m": momentum_15m,
+                    "momentum_5m": momentum_5m,
+                    "volume_momentum_1m": volume_momentum,
                     "change_24h": change_24h,
                     "change_7d": getattr(ticker, "change_7d", 0),
                     "volatility": volatility,
@@ -1909,8 +1917,8 @@ class IBISTrueAgent:
                     "candle_analysis": candle_analysis,
                     "technical_score": base_score,
                     "agi_score": indicator_composite,
-                    "mtf_score": 50,  # Default
-                    "volume_score": 50,  # Default
+                    "mtf_score": indicator_composite,
+                    "volume_score": min(100, max(0, 50 + (volume_momentum * 0.8))),
                     "sentiment_score": fg_score,
                 }
 
@@ -1935,7 +1943,7 @@ class IBISTrueAgent:
                         volumes=volumes,
                         technical_score=base_score,
                         agi_score=indicator_composite,
-                        mtf_score=50,
+                        mtf_score=indicator_composite,
                         volume_24h=volume_24h,
                         fear_greed_index=fg_score,
                         momentum_1h=momentum_1h,
@@ -1950,6 +1958,10 @@ class IBISTrueAgent:
                     "current_price": price,
                     "change_24h": change_24h,
                     "momentum_1h": momentum_1h,
+                    "momentum_1h_raw": momentum_1h_raw,
+                    "momentum_15m": momentum_15m,
+                    "momentum_5m": momentum_5m,
+                    "volume_momentum": volume_momentum,
                     "volatility": volatility,
                     "volatility_1m": candle_analysis.get("volatility_1m", 0.02),
                     "volatility_5m": candle_analysis.get("volatility_5m", 0.02),
@@ -3046,6 +3058,11 @@ class IBISTrueAgent:
             "volatility_1m": 0.02,  # Default volatility (2%)
             "volatility_5m": 0.02,
             "volatility_15m": 0.02,
+            "momentum_5m": 0.0,
+            "momentum_15m": 0.0,
+            "momentum_1h_raw": 0.0,
+            "momentum_composite": 0.0,
+            "volume_momentum": 0.0,
             "trend_strength": 0,
             "volume_profile": 0,
             "candle_patterns": [],
@@ -3109,26 +3126,75 @@ class IBISTrueAgent:
         # Determine price action type
         analysis["price_action"] = self._determine_price_action(candles_15m)
 
-        # Calculate 1h momentum from 1m candles
-        if candles_1m and len(candles_1m) >= 10:
-            first_price = candles_1m[0].close
-            last_price = candles_1m[-1].close
-            if first_price > 0:
-                analysis["momentum_1h"] = ((last_price - first_price) / first_price) * 100
-            else:
-                analysis["momentum_1h"] = 0
-        else:
-            analysis["momentum_1h"] = 0
+        # Multi-timeframe momentum bundle from 1m/5m/15m candles.
+        momentum_1h_raw = 0.0
+        momentum_15m = 0.0
+        momentum_5m = 0.0
+        volume_momentum = 0.0
+
+        if candles_1m and len(candles_1m) >= 2:
+            try:
+                # 1h momentum from available 1m candles (up to 60 bars)
+                lookback_1h = min(60, len(candles_1m) - 1)
+                first_1h = float(candles_1m[-(lookback_1h + 1)].close)
+                last_1h = float(candles_1m[-1].close)
+                if first_1h > 0:
+                    momentum_1h_raw = ((last_1h - first_1h) / first_1h) * 100.0
+
+                # Fast momentum from last 15m / 5m of 1m bars
+                if len(candles_1m) >= 16:
+                    p15 = float(candles_1m[-16].close)
+                    if p15 > 0:
+                        momentum_15m = ((last_1h - p15) / p15) * 100.0
+                if len(candles_1m) >= 6:
+                    p5 = float(candles_1m[-6].close)
+                    if p5 > 0:
+                        momentum_5m = ((last_1h - p5) / p5) * 100.0
+
+                # Volume momentum: recent 10 bars vs prior 10 bars
+                if len(candles_1m) >= 20:
+                    recent_vol = sum(float(c.volume) for c in candles_1m[-10:])
+                    prior_vol = sum(float(c.volume) for c in candles_1m[-20:-10])
+                    if prior_vol > 0:
+                        volume_momentum = ((recent_vol / prior_vol) - 1.0) * 100.0
+            except Exception:
+                pass
+
+        # Fallback reinforcement from 5m candles for momentum_15m when available
+        if candles_5m and len(candles_5m) >= 4:
+            try:
+                p15_5m = float(candles_5m[-4].close)
+                last_5m = float(candles_5m[-1].close)
+                if p15_5m > 0:
+                    momentum_15m = ((last_5m - p15_5m) / p15_5m) * 100.0
+            except Exception:
+                pass
+
+        # Composite momentum used by downstream scoring (bias to faster data under volatility)
+        momentum_composite = (0.45 * momentum_1h_raw) + (0.35 * momentum_15m) + (0.20 * momentum_5m)
+
+        analysis["momentum_1h_raw"] = momentum_1h_raw
+        analysis["momentum_15m"] = momentum_15m
+        analysis["momentum_5m"] = momentum_5m
+        analysis["volume_momentum"] = volume_momentum
+        analysis["momentum_composite"] = momentum_composite
+        analysis["momentum_1h"] = momentum_composite
 
         # 🕯️ Log candle analysis for visibility
         momentum_1h = analysis.get("momentum_1h", 0)
         if analysis["candle_patterns"]:
             self.log_event(
-                f"      🕯️ CANDLES: {analysis['price_action']} | patterns: {analysis['candle_patterns']} | momentum: {momentum_1h:.3f}% | vol_1m: {analysis['volatility_1m']:.4f}"
+                f"      🕯️ CANDLES: {analysis['price_action']} | patterns: {analysis['candle_patterns']} | "
+                f"M5:{analysis['momentum_5m']:+.3f}% M15:{analysis['momentum_15m']:+.3f}% "
+                f"M1h(raw):{analysis['momentum_1h_raw']:+.3f}% Mx:{momentum_1h:+.3f}% "
+                f"Vmom:{analysis['volume_momentum']:+.1f}% | vol_1m: {analysis['volatility_1m']:.4f}"
             )
         else:
             self.log_event(
-                f"      🕯️ CANDLES: {analysis['price_action']} | momentum: {momentum_1h:.3f}% | vol_1m: {analysis['volatility_1m']:.4f}"
+                f"      🕯️ CANDLES: {analysis['price_action']} | "
+                f"M5:{analysis['momentum_5m']:+.3f}% M15:{analysis['momentum_15m']:+.3f}% "
+                f"M1h(raw):{analysis['momentum_1h_raw']:+.3f}% Mx:{momentum_1h:+.3f}% "
+                f"Vmom:{analysis['volume_momentum']:+.1f}% | vol_1m: {analysis['volatility_1m']:.4f}"
             )
 
         return analysis
