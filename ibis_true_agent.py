@@ -335,8 +335,10 @@ class IBISTrueAgent:
             "stale_buy_pressure_min_pending": 2,
             "stale_sell_reprice_seconds": 60,
             "stale_sell_hard_seconds": 180,
+            "stale_sell_min_projected_profit_usdt": 0.02,
             "stale_reprice_cooldown_seconds": 45,
             "stale_reprice_max_per_cycle": 2,
+            "take_profit_force_limit": True,
             "market_entry_score_threshold": 90,
             "market_entry_max_spread": 0.0035,
             "zombie_max_hold_minutes": 30,
@@ -5138,6 +5140,9 @@ class IBISTrueAgent:
             now_ms = int(time.time() * 1000)
             stale_seconds = int(self.config.get("stale_sell_reprice_seconds", 60))
             hard_seconds = int(self.config.get("stale_sell_hard_seconds", 180))
+            stale_sell_min_projected_profit = float(
+                self.config.get("stale_sell_min_projected_profit_usdt", 0.02)
+            )
             cooldown_seconds = int(self.config.get("stale_reprice_cooldown_seconds", 45))
             max_reprices = int(self.config.get("stale_reprice_max_per_cycle", 2))
             repriced = 0
@@ -5217,6 +5222,24 @@ class IBISTrueAgent:
                     continue
                 if target_price >= order_price:
                     continue
+
+                # Profitability guard: never reprice below fee-aware minimum profitable exit.
+                pos = self.state.get("positions", {}).get(symbol, {}) or {}
+                buy_price = float(pos.get("buy_price", 0) or 0)
+                qty = float(pos.get("quantity", order_size) or order_size or 0)
+                est_friction = float(self._estimate_total_friction_for_symbol(symbol) or 0)
+                if buy_price > 0 and qty > 0 and est_friction < 0.999:
+                    min_profitable_price = (buy_price + (stale_sell_min_projected_profit / qty)) / (
+                        1.0 - est_friction
+                    )
+                    min_profitable_price = round_down_to_increment(
+                        min_profitable_price, price_increment
+                    )
+                    if target_price < min_profitable_price:
+                        self.log_event(
+                            f"   🛡️ STALE SELL GUARD: {symbol} reprice blocked ${target_price:.8f} < min profitable ${min_profitable_price:.8f}"
+                        )
+                        continue
 
                 try:
                     await self.client.cancel_order(order_id)
@@ -5435,8 +5458,9 @@ class IBISTrueAgent:
             # In perfect storm, we want instant exit to capture profits
             is_take_profit = "TAKE_PROFIT" in reason
             is_perfect = getattr(self, "_perfect_storm", False)
+            take_profit_force_limit = bool(self.config.get("take_profit_force_limit", True))
 
-            if is_perfect and is_take_profit:
+            if is_perfect and is_take_profit and not take_profit_force_limit:
                 # MARKET order for instant exit in perfect conditions
                 close_type = "market"
                 close_price = 0
