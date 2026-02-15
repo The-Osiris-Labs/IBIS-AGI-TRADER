@@ -332,6 +332,7 @@ class IBISTrueAgent:
             "maker_first_execution": True,
             "stale_buy_cancel_seconds": 60,
             "stale_buy_cancel_max_per_cycle": 6,
+            "stale_buy_pressure_min_pending": 2,
             "stale_sell_reprice_seconds": 60,
             "stale_sell_hard_seconds": 180,
             "stale_reprice_cooldown_seconds": 45,
@@ -4867,6 +4868,9 @@ class IBISTrueAgent:
         stale_buy_seconds = int(self.config.get("stale_buy_cancel_seconds", 90))
         pressure_relief_seconds = int(self.config.get("stale_buy_pressure_relief_seconds", 45))
         pressure_trigger = int(self.config.get("stale_buy_pressure_trigger", 4))
+        pressure_min_pending = max(
+            1, int(self.config.get("stale_buy_pressure_min_pending", 2))
+        )
         stale_buy_hard_seconds = int(
             self.config.get(
                 "stale_buy_hard_seconds",
@@ -5000,7 +5004,8 @@ class IBISTrueAgent:
                         max(0.0, (time.time() * 1000 - created_at) / 1000.0) if created_at > 0 else 0
                     )
                     soft_stale = age_seconds >= stale_buy_seconds and (
-                        under_capital_pressure or len(buy_orders) >= pressure_trigger
+                        len(buy_orders) >= pressure_trigger
+                        or (under_capital_pressure and len(buy_orders) >= pressure_min_pending)
                     )
                     hard_stale = age_seconds >= stale_buy_hard_seconds
                     if deal_size <= 0 and created_at > 0 and (soft_stale or hard_stale):
@@ -6897,7 +6902,9 @@ class IBISTrueAgent:
                                     recycle_min_projected_profit = float(
                                         self.config.get("recycle_min_projected_profit_usdt", 0.03)
                                     )
-                                    pos_pnl = float(pos.get("unrealized_pnl_pct", 0) or 0)
+                                    # Use ratio-space PnL for execution guards.
+                                    # Stored `unrealized_pnl_pct` is in percentage points.
+                                    pos_pnl = (current_px - buy_px) / buy_px if buy_px > 0 else 0.0
                                     qty = float(pos.get("quantity", 0) or 0)
                                     buy_px = float(pos.get("buy_price", 0) or 0)
                                     current_px = float(pos.get("current_price", 0) or buy_px or 0)
