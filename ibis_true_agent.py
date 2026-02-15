@@ -6163,8 +6163,11 @@ class IBISTrueAgent:
 
             total = usdt + pos_value
             balance = self.state["daily"]["start_balance"]
-            pnl = self.state["daily"]["pnl"]
+            pnl = float(self.state["daily"].get("realized_pnl", self.state["daily"].get("pnl", 0.0)))
             return_pct = (pnl / balance * 100) if balance > 0 else 0
+            runtime_trades = int(
+                self.state["daily"].get("orders_filled", self.state["daily"].get("trades", 0))
+            )
 
             print(f"\n{'=' * 70}")
             print(f"   🦅 IBIS TRUE AUTONOMOUS AGENT | {datetime.now().strftime('%H:%M:%S')}")
@@ -6177,7 +6180,7 @@ class IBISTrueAgent:
             print(f"   TOTAL:     ${total:.2f}")
             print(f"   Today's:   ${pnl:+.4f} ({return_pct:+.2f}%)")
             print(
-                f"   Trades:    {self.state['daily']['wins']}W {self.state['daily']['losses']}L ({self.state['daily']['trades']} total)"
+                f"   Trades:    {self.state['daily']['wins']}W {self.state['daily']['losses']}L ({runtime_trades} total)"
             )
             print(f"{'=' * 70}")
 
@@ -6196,7 +6199,11 @@ class IBISTrueAgent:
         """IBIS MAXIMUM AUTONOMOUS INTELLIGENCE - Complete Market Analysis"""
 
         daily = self.state["daily"]
-        win_rate = (daily["wins"] / daily["trades"] * 100) if daily["trades"] > 0 else 0
+        runtime_trades = int(daily.get("orders_filled", daily.get("trades", 0)))
+        wins = int(daily.get("wins", 0))
+        losses = int(daily.get("losses", 0))
+        wl_samples = wins + losses
+        win_rate = (wins / wl_samples * 100) if wl_samples > 0 else 0
         cycles = sum(daily["regimes_experienced"].values())
 
         balances = await self.client.get_all_balances()
