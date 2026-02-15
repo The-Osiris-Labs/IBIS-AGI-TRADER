@@ -78,6 +78,18 @@ python3 tools/reconcile_state_db.py --apply
 python3 tools/deep_state_audit.py --live-exchange
 ```
 
+## Issue: `db_trades` looks too low
+
+`ibis_true_agent.py` execution metrics are derived from `data/trade_history.json`.
+If `db_trades` is lower than `trade_history_records`, treat it as reporting drift unless other health checks fail.
+
+Commands:
+
+```bash
+./runtime_status.sh
+python3 tools/execution_econ_report.py
+```
+
 ## Verification Target
 
 Healthy target after fixes:

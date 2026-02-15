@@ -74,6 +74,21 @@ async def _live_snapshot() -> Dict:
     }
 
 
+async def _live_snapshot_with_retry(max_attempts: int = 3, base_delay: float = 1.0) -> Dict:
+    last_exc: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return await _live_snapshot()
+        except Exception as exc:
+            last_exc = exc
+            # Retry on transient exchange/rate-limit failures.
+            if attempt < max_attempts:
+                await asyncio.sleep(base_delay * attempt)
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("live snapshot failed")
+
+
 def _db_symbols() -> Set[str]:
     if not DB_PATH.exists():
         return set()
@@ -121,7 +136,7 @@ def main() -> int:
 
     live = None
     try:
-        live = asyncio.run(_live_snapshot())
+        live = asyncio.run(_live_snapshot_with_retry())
         only_state_live_raw = state_symbols - live['live_symbols']
         only_live_state_raw = live['live_symbols'] - state_symbols
         only_state_live = sorted(only_state_live_raw - tracked_sell_symbols - tracked_buy_symbols)

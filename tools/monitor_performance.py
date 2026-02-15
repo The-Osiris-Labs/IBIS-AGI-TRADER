@@ -6,10 +6,16 @@ Monitors current agent performance and market intelligence
 """
 
 import asyncio
-import json
-from ibis_true_agent import IBISAutonomousAgent
+import sys
+from pathlib import Path
 from rich.console import Console
 from rich.table import Table
+
+BASE = Path(__file__).resolve().parent.parent
+if str(BASE) not in sys.path:
+    sys.path.insert(0, str(BASE))
+
+from ibis_true_agent import IBISAutonomousAgent
 
 
 async def monitor_performance():
@@ -68,11 +74,17 @@ async def monitor_performance():
             pos_table.add_column("Price", style="green")
 
             for symbol, pos in agent.state["positions"].items():
+                entry_price = (
+                    pos.get("buy_price")
+                    or pos.get("order_price")
+                    or pos.get("current_price")
+                    or 0.0
+                )
                 pos_table.add_row(
-                    pos["symbol"],
-                    pos["mode"],
-                    f"{pos['quantity']:.4f}",
-                    f"${pos['order_price']:.4f}",
+                    str(pos.get("symbol", symbol)),
+                    str(pos.get("mode", "UNKNOWN")),
+                    f"{float(pos.get('quantity', 0) or 0):.4f}",
+                    f"${float(entry_price):.6f}",
                 )
 
             console.print(pos_table)

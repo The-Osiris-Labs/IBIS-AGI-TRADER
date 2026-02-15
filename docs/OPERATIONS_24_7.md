@@ -41,7 +41,11 @@ systemctl list-timers --all --no-pager | rg 'ibis-.*timer'
 - `service_active: active`
 - `service_enabled: enabled`
 - `state_positions == db_positions`
+- `trade_history_records` increasing over time
 - `overall: OK`
+
+Notes:
+- `db_trades` can lag `trade_history_records`; runtime execution reporting uses `data/trade_history.json`.
 
 ## Degraded State
 

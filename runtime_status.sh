@@ -7,6 +7,7 @@ set -u
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE_FILE="$BASE_DIR/data/ibis_true_state.json"
 DB_FILE="$BASE_DIR/data/ibis_v8.db"
+TRADE_HISTORY_FILE="$BASE_DIR/data/trade_history.json"
 SERVICE_NAME="ibis-agent.service"
 AGENT_REGEX="/root/projects/(ibis_trader|Dont enter unless solicited/AGI Trader)/ibis_true_agent.py"
 
@@ -75,6 +76,7 @@ echo "db_file_age_min: $db_age_min"
 state_positions=0
 db_positions=0
 db_trades=0
+trade_history_records=0
 if [ -f "$STATE_FILE" ]; then
     state_positions=$(jq '.positions | length' "$STATE_FILE" 2>/dev/null || echo 0)
 fi
@@ -88,12 +90,20 @@ if [ -f "$DB_FILE" ]; then
         db_trades=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM trades;" 2>/dev/null || echo 0)
     fi
 fi
+if [ -f "$TRADE_HISTORY_FILE" ]; then
+    # Supports both {"trades":[...]} and bare [...] layouts.
+    trade_history_records=$(jq 'if type=="object" then (.trades // [] | length) elif type=="array" then length else 0 end' "$TRADE_HISTORY_FILE" 2>/dev/null || echo 0)
+fi
 echo "state_positions: $state_positions"
 echo "db_positions: $db_positions"
 echo "db_trades: $db_trades"
+echo "trade_history_records: $trade_history_records"
 
 if [ "$state_positions" != "$db_positions" ]; then
     echo "warning: position_count_mismatch=1"
+fi
+if [ "$trade_history_records" -gt 0 ] && [ "$db_trades" -lt "$trade_history_records" ]; then
+    echo "note: db_trades_lagging_trade_history=1"
 fi
 
 if [ -x "$BASE_DIR/tools/check_credentials_source.sh" ]; then
