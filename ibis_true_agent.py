@@ -1940,8 +1940,14 @@ class IBISTrueAgent:
                 # Calculate unified score
                 from ibis.core.unified_scoring import unified_scorer
 
-                unified_result = unified_scorer.calculate_unified_score_from_data(
-                    symbol=sym, symbol_data=symbol_data
+                unified_result = unified_scorer.calculate_unified_score(
+                    technical_score=base_score,
+                    agi_score=indicator_composite,
+                    mtf_score=momentum_mtf_score,
+                    volume_score=blended_volume_score,
+                    sentiment_score=fg_score,
+                    symbol=sym,
+                    symbol_data=symbol_data,
                 )
 
                 # Calculate funnel score
