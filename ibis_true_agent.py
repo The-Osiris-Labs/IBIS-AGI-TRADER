@@ -1890,9 +1890,24 @@ class IBISTrueAgent:
                 momentum_15m = candle_analysis.get("momentum_15m", 0)
                 momentum_5m = candle_analysis.get("momentum_5m", 0)
                 volume_momentum = candle_analysis.get("volume_momentum", 0)
+                momentum_confidence = candle_analysis.get("momentum_confidence", 0.0)
                 # Calculate base score first
                 base_score = self._calculate_technical_strength(momentum_1h, change_24h)
                 indicator_composite = candle_analysis.get("composite_score", 50)
+                momentum_mtf_score = max(
+                    0,
+                    min(
+                        100,
+                        50
+                        + (momentum_5m * 6.0)
+                        + (momentum_15m * 8.0)
+                        + (momentum_1h_raw * 4.0),
+                    ),
+                )
+                volume_momentum_score = max(0, min(100, 50 + (volume_momentum * 0.4)))
+                blended_volume_score = max(
+                    0, min(100, (volume_momentum_score * 0.65) + (self._calculate_liquidity_score(volume_24h) * 0.35))
+                )
 
                 # Create comprehensive symbol data for unified scoring
                 symbol_data = {
@@ -1917,8 +1932,8 @@ class IBISTrueAgent:
                     "candle_analysis": candle_analysis,
                     "technical_score": base_score,
                     "agi_score": indicator_composite,
-                    "mtf_score": indicator_composite,
-                    "volume_score": min(100, max(0, 50 + (volume_momentum * 0.8))),
+                    "mtf_score": momentum_mtf_score,
+                    "volume_score": blended_volume_score,
                     "sentiment_score": fg_score,
                 }
 
@@ -1962,6 +1977,8 @@ class IBISTrueAgent:
                     "momentum_15m": momentum_15m,
                     "momentum_5m": momentum_5m,
                     "volume_momentum": volume_momentum,
+                    "momentum_confidence": momentum_confidence,
+                    "momentum_mtf_score": momentum_mtf_score,
                     "volatility": volatility,
                     "volatility_1m": candle_analysis.get("volatility_1m", 0.02),
                     "volatility_5m": candle_analysis.get("volatility_5m", 0.02),
@@ -3131,6 +3148,7 @@ class IBISTrueAgent:
         momentum_15m = 0.0
         momentum_5m = 0.0
         volume_momentum = 0.0
+        momentum_confidence = 0.0
 
         if candles_1m and len(candles_1m) >= 2:
             try:
@@ -3157,6 +3175,14 @@ class IBISTrueAgent:
                     prior_vol = sum(float(c.volume) for c in candles_1m[-20:-10])
                     if prior_vol > 0:
                         volume_momentum = ((recent_vol / prior_vol) - 1.0) * 100.0
+
+                # Confidence from data coverage and continuity
+                confidence_1m = min(1.0, len(candles_1m) / 60.0)
+                confidence_5m = min(1.0, len(candles_5m) / 12.0) if candles_5m else 0.0
+                confidence_15m = min(1.0, len(candles_15m) / 8.0) if candles_15m else 0.0
+                momentum_confidence = (
+                    (confidence_1m * 0.6) + (confidence_5m * 0.25) + (confidence_15m * 0.15)
+                ) * 100.0
             except Exception:
                 pass
 
@@ -3170,13 +3196,22 @@ class IBISTrueAgent:
             except Exception:
                 pass
 
+        # Clamp to avoid outlier spikes from micro-cap prints distorting signal quality
+        momentum_1h_raw = max(-15.0, min(15.0, momentum_1h_raw))
+        momentum_15m = max(-8.0, min(8.0, momentum_15m))
+        momentum_5m = max(-5.0, min(5.0, momentum_5m))
+        volume_momentum = max(-250.0, min(250.0, volume_momentum))
+
         # Composite momentum used by downstream scoring (bias to faster data under volatility)
-        momentum_composite = (0.45 * momentum_1h_raw) + (0.35 * momentum_15m) + (0.20 * momentum_5m)
+        raw_composite = (0.45 * momentum_1h_raw) + (0.35 * momentum_15m) + (0.20 * momentum_5m)
+        confidence_alpha = max(0.25, min(1.0, momentum_confidence / 100.0))
+        momentum_composite = raw_composite * confidence_alpha
 
         analysis["momentum_1h_raw"] = momentum_1h_raw
         analysis["momentum_15m"] = momentum_15m
         analysis["momentum_5m"] = momentum_5m
         analysis["volume_momentum"] = volume_momentum
+        analysis["momentum_confidence"] = momentum_confidence
         analysis["momentum_composite"] = momentum_composite
         analysis["momentum_1h"] = momentum_composite
 
@@ -3187,14 +3222,14 @@ class IBISTrueAgent:
                 f"      🕯️ CANDLES: {analysis['price_action']} | patterns: {analysis['candle_patterns']} | "
                 f"M5:{analysis['momentum_5m']:+.3f}% M15:{analysis['momentum_15m']:+.3f}% "
                 f"M1h(raw):{analysis['momentum_1h_raw']:+.3f}% Mx:{momentum_1h:+.3f}% "
-                f"Vmom:{analysis['volume_momentum']:+.1f}% | vol_1m: {analysis['volatility_1m']:.4f}"
+                f"Vmom:{analysis['volume_momentum']:+.1f}% C:{analysis['momentum_confidence']:.0f}% | vol_1m: {analysis['volatility_1m']:.4f}"
             )
         else:
             self.log_event(
                 f"      🕯️ CANDLES: {analysis['price_action']} | "
                 f"M5:{analysis['momentum_5m']:+.3f}% M15:{analysis['momentum_15m']:+.3f}% "
                 f"M1h(raw):{analysis['momentum_1h_raw']:+.3f}% Mx:{momentum_1h:+.3f}% "
-                f"Vmom:{analysis['volume_momentum']:+.1f}% | vol_1m: {analysis['volatility_1m']:.4f}"
+                f"Vmom:{analysis['volume_momentum']:+.1f}% C:{analysis['momentum_confidence']:.0f}% | vol_1m: {analysis['volatility_1m']:.4f}"
             )
 
         return analysis
