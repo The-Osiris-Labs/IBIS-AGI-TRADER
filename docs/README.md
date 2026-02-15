@@ -19,6 +19,12 @@ systemctl status ibis-agent.service --no-pager -l
 systemctl list-timers --all --no-pager | rg 'ibis-.*timer'
 ```
 
+History reconciliation:
+
+```bash
+python3 tools/sync_trade_history_to_db.py --apply
+```
+
 ## Source of Truth Rule
 
 When docs and runtime differ, runtime output is authoritative. Update docs immediately after validated runtime changes.

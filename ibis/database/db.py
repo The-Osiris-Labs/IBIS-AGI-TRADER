@@ -22,6 +22,10 @@ class IbisDB:
     def _ensure_db_dir(self):
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
+    @staticmethod
+    def _normalize_symbol(symbol: str) -> str:
+        return str(symbol or "").replace("-USDT", "").replace("-USDC", "")
+
     @contextmanager
     def get_conn(self):
         conn = sqlite3.connect(self.db_path)
@@ -57,6 +61,7 @@ class IbisDB:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 symbol TEXT NOT NULL,
                 side TEXT NOT NULL CHECK(side IN ('BUY', 'SELL')),
+                order_id TEXT,
                 quantity REAL NOT NULL,
                 price REAL NOT NULL,
                 fees REAL DEFAULT 0,
@@ -93,6 +98,24 @@ class IbisDB:
                 except sqlite3.OperationalError:
                     pass  # Column already exists
 
+            # Trades table migrations.
+            try:
+                conn.execute("ALTER TABLE trades ADD COLUMN order_id TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+            # Create order-id dedup index after migrations.
+            try:
+                conn.execute(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_order_id_unique
+                    ON trades(order_id)
+                    WHERE order_id IS NOT NULL AND order_id != ''
+                    """
+                )
+            except sqlite3.OperationalError:
+                pass
+
     def update_position(
         self,
         symbol,
@@ -106,6 +129,7 @@ class IbisDB:
         limit_sell_order_id=None,
         limit_sell_price=None,
     ):
+        symbol = self._normalize_symbol(symbol)
         with self.get_conn() as conn:
             conn.execute(
                 """
@@ -166,6 +190,7 @@ class IbisDB:
         except:
             default_friction = 0.0025  # 0.25% default
 
+        symbol = self._normalize_symbol(symbol)
         with self.get_conn() as conn:
             row = conn.execute(
                 "SELECT quantity, entry_price, entry_fee FROM positions WHERE symbol = ?",
@@ -196,8 +221,8 @@ class IbisDB:
                 # Log trade with actual fees
                 conn.execute(
                     """
-                INSERT INTO trades (symbol, side, quantity, price, fees, pnl, pnl_pct, reason)
-                VALUES (?, 'SELL', ?, ?, ?, ?, ?, ?)
+                INSERT INTO trades (symbol, side, order_id, quantity, price, fees, pnl, pnl_pct, reason)
+                VALUES (?, 'SELL', NULL, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         symbol,

@@ -90,6 +90,12 @@ Commands:
 python3 tools/execution_econ_report.py
 ```
 
+Optional DB backfill:
+
+```bash
+python3 tools/sync_trade_history_to_db.py --apply
+```
+
 ## Verification Target
 
 Healthy target after fixes:

@@ -5850,7 +5850,7 @@ class IBISTrueAgent:
 
                                 db = IbisDB()
                                 db.close_position(
-                                    symbol=f"{symbol}-USDT",
+                                    symbol=symbol,
                                     exit_price=exit_price,
                                     reason="RECONCILED_NO_EXCHANGE_BALANCE",
                                     actual_fee=0.0,
@@ -5965,8 +5965,8 @@ class IBISTrueAgent:
 
                 db = IbisDB()
                 db.close_position(
-                    symbol=f"{symbol}-USDT",
-                    exit_price=exit_price,
+                    symbol=symbol,
+                    exit_price=actual_fill_price,
                     reason=reason,
                     actual_fee=fees_used,
                 )
