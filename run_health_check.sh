@@ -10,6 +10,7 @@ RUNTIME_STATUS="$AGENT_DIR/runtime_status.sh"
 RECONCILE_SCRIPT="$AGENT_DIR/tools/reconcile_state_db.py"
 EXEC_INTEGRITY_SCRIPT="$AGENT_DIR/tools/execution_integrity_check.py"
 TRUTH_SNAPSHOT_SCRIPT="$AGENT_DIR/tools/truth_snapshot.py"
+TRADE_SYNC_SCRIPT="$AGENT_DIR/tools/sync_trade_history_to_db.py"
 TRUTH_STREAM_LOG="$AGENT_DIR/data/truth_stream.log"
 LOCK_FILE="$AGENT_DIR/data/run_health_check.lock"
 SERVICE_NAME="ibis-agent.service"
@@ -77,6 +78,16 @@ if [ -f "$EXEC_INTEGRITY_SCRIPT" ]; then
     # Treat warnings as informational; fail only on critical integrity errors.
     if [ "${HEALTH_EXIT:-1}" -eq 0 ] && [ "$EXEC_EXIT" -ge 2 ]; then
         HEALTH_EXIT=$EXEC_EXIT
+    fi
+fi
+
+if [ -f "$TRADE_SYNC_SCRIPT" ]; then
+    echo "--- trade_history_db_sync ---" >> "$HEALTH_LOG"
+    python3 "$TRADE_SYNC_SCRIPT" --apply >> "$HEALTH_LOG" 2>&1
+    SYNC_EXIT=$?
+    echo "trade_history_db_sync exit code: ${SYNC_EXIT}" >> "$HEALTH_LOG"
+    if [ "${HEALTH_EXIT:-1}" -eq 0 ] && [ "$SYNC_EXIT" -ge 2 ]; then
+        HEALTH_EXIT=$SYNC_EXIT
     fi
 fi
 

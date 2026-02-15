@@ -246,6 +246,7 @@ class IBISTrueAgent:
         self.agent_memory.setdefault("fill_latency_recent", [])
         self.agent_memory.setdefault("recycle_close_ts", {})
         self.agent_memory.setdefault("buy_reentry_cooldown_until", {})
+        self.agent_memory.setdefault("entry_reject_cooldown_until", {})
         self.agent_memory.setdefault("stale_buy_cancel_counts", {})
         self.agent_memory.setdefault("stale_buy_last_cancel", {})
         self._last_db_sync_ts = 0.0
@@ -373,6 +374,8 @@ class IBISTrueAgent:
             "stale_buy_reentry_cooldown_max_seconds": 240,
             "stale_buy_reentry_price_window_seconds": 300,
             "stale_buy_reentry_price_improvement_bps": 8,
+            "entry_reject_cooldown_seconds": 45,
+            "entry_reject_cooldown_max_seconds": 180,
             "entry_admission_enabled": True,
             "entry_admission_min_edge": 45.0,
             "entry_admission_fee_penalty_points": 4000.0,
@@ -1373,6 +1376,38 @@ class IBISTrueAgent:
             cooldown_map.pop(symbol, None)
             return 0.0
         return remaining
+
+    def _mark_entry_reject_cooldown(self, symbol: str, seconds: int, reason: str = "") -> None:
+        cooldown_seconds = max(0, int(seconds))
+        if cooldown_seconds <= 0:
+            return
+        now_ts = time.time()
+        cooldown_map = self.agent_memory.setdefault("entry_reject_cooldown_until", {})
+        cooldown_map[symbol] = {
+            "until": now_ts + cooldown_seconds,
+            "reason": str(reason or "execution_reject"),
+        }
+        if len(cooldown_map) > 400:
+            oldest = sorted(
+                cooldown_map.items(),
+                key=lambda x: float((x[1] or {}).get("until", 0)),
+            )[:120]
+            for sym, row in oldest:
+                if float((row or {}).get("until", 0)) <= now_ts:
+                    cooldown_map.pop(sym, None)
+
+    def _get_entry_reject_cooldown_remaining(self, symbol: str) -> tuple[float, str]:
+        cooldown_map = self.agent_memory.get("entry_reject_cooldown_until", {}) or {}
+        row = cooldown_map.get(symbol, {}) or {}
+        until_ts = float(row.get("until", 0) or 0)
+        reason = str(row.get("reason", "") or "")
+        if until_ts <= 0:
+            return 0.0, ""
+        remaining = until_ts - time.time()
+        if remaining <= 0:
+            cooldown_map.pop(symbol, None)
+            return 0.0, ""
+        return remaining, reason
 
     def _next_stale_buy_reentry_cooldown(self, symbol: str) -> int:
         """Escalate reentry cooldown for symbols repeatedly canceled as stale."""
@@ -4455,8 +4490,20 @@ class IBISTrueAgent:
                 ask = ticker.sell
                 spread = (ask - bid) / bid if bid > 0 else 0
                 if spread > 0.01:  # 1% max spread for Supreme Mode
+                    base_cd = max(0, int(self.config.get("entry_reject_cooldown_seconds", 45)))
+                    max_cd = max(
+                        base_cd,
+                        int(self.config.get("entry_reject_cooldown_max_seconds", 180)),
+                    )
+                    # Wider spread => longer backoff to reduce execution churn.
+                    spread_factor = min(4.0, max(1.0, spread / 0.01))
+                    cooldown_seconds = min(max_cd, int(base_cd * spread_factor))
+                    self._mark_entry_reject_cooldown(
+                        symbol, cooldown_seconds, reason="spread_too_wide"
+                    )
                     self.log_event(
-                        f"      🛑 SPREAD TOO WIDE: {symbol} ({spread * 100:.2f}%) - skipping"
+                        f"      🛑 SPREAD TOO WIDE: {symbol} ({spread * 100:.2f}%) - skipping "
+                        f"(cooldown {cooldown_seconds}s)"
                     )
                     return None
         except (TypeError, ValueError) as e:
@@ -7328,6 +7375,16 @@ class IBISTrueAgent:
                         if price_guard_skip:
                             self.log_event(
                                 f"   🧊 SKIPPING: Reentry price guard for {symbol} - {price_guard_reason}"
+                            )
+                            continue
+
+                        reject_cd_remaining, reject_cd_reason = (
+                            self._get_entry_reject_cooldown_remaining(symbol)
+                        )
+                        if reject_cd_remaining > 0:
+                            self.log_event(
+                                f"   🧊 SKIPPING: Entry reject cooldown for {symbol} "
+                                f"({reject_cd_remaining:.0f}s remaining, reason={reject_cd_reason or 'execution_reject'})"
                             )
                             continue
 
