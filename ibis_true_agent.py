@@ -252,6 +252,8 @@ class IBISTrueAgent:
         self._symbol_fee_profile = {}
         self._symbol_fee_counts = {}
         self._last_fee_profile_refresh_ts = 0.0
+        self._last_open_orders_log_sig = ""
+        self._last_open_orders_log_ts = 0.0
         self._last_recycle_close_ts = self.agent_memory.get("recycle_close_ts", {}) or {}
         if not isinstance(self._last_recycle_close_ts, dict):
             self._last_recycle_close_ts = {}
@@ -871,19 +873,52 @@ class IBISTrueAgent:
 
             buy_orders = {"buy": {}, "sell": {}}
 
-            # Debug logging
+            # Throttle repeated open-order logs to reduce noise.
+            now_ts = time.time()
             if open_orders:
-                self.log_event(f"🔍 Found {len(open_orders)} open orders")
-                for o in open_orders[:3]:
-                    if hasattr(o, "symbol"):
-                        side = getattr(o, "side", "N/A")
-                        self.log_event(
-                            f"   Order: {o.symbol} side='{side}' size={o.size} price={o.price}"
-                        )
+                summary_parts = []
+                for o in open_orders[:5]:
+                    if hasattr(o, "symbol") and not isinstance(o, dict):
+                        oid = str(getattr(o, "order_id", "") or "")
+                        sym = str(getattr(o, "symbol", "") or "")
+                        side = str(getattr(o, "side", "") or "")
+                        status = str(getattr(o, "status", "") or "")
                     else:
-                        self.log_event(f"   Order (dict): {o}")
+                        oid = str(o.get("id", "") or o.get("orderId", "") or "")
+                        sym = str(o.get("symbol", "") or "")
+                        side = str(o.get("side", "") or "")
+                        status = "ACTIVE" if o.get("isActive", True) else "DONE"
+                    summary_parts.append(f"{sym}:{side}:{status}:{oid}")
+                open_sig = f"open:{len(open_orders)}|" + "|".join(summary_parts)
             else:
-                self.log_event(f"🔍 No open orders found")
+                open_sig = "open:0"
+
+            should_log_orders = (
+                open_sig != getattr(self, "_last_open_orders_log_sig", "")
+                or (now_ts - getattr(self, "_last_open_orders_log_ts", 0.0)) >= 60
+            )
+            if should_log_orders:
+                if open_orders:
+                    self.log_event(f"🔍 Found {len(open_orders)} open orders")
+                    for o in open_orders[:3]:
+                        if hasattr(o, "symbol") and not isinstance(o, dict):
+                            side = getattr(o, "side", "N/A")
+                            self.log_event(
+                                f"   Order: {o.symbol} side='{side}' size={o.size} price={o.price}"
+                            )
+                        else:
+                            sym = o.get("symbol", "N/A")
+                            side = o.get("side", "N/A")
+                            size = o.get("size", "0")
+                            price = o.get("price", "0")
+                            oid = o.get("id", "") or o.get("orderId", "") or "N/A"
+                            self.log_event(
+                                f"   Order: {sym} side='{side}' size={size} price={price} id={oid}"
+                            )
+                else:
+                    self.log_event("🔍 No open orders found")
+                self._last_open_orders_log_sig = open_sig
+                self._last_open_orders_log_ts = now_ts
 
             for order in open_orders:
                 # Handle both dict-like and TradeOrder objects
@@ -1964,7 +1999,7 @@ class IBISTrueAgent:
                         volumes=volumes,
                         technical_score=base_score,
                         agi_score=indicator_composite,
-                        mtf_score=indicator_composite,
+                        mtf_score=momentum_mtf_score,
                         volume_24h=volume_24h,
                         fear_greed_index=fg_score,
                         momentum_1h=momentum_1h,
@@ -6533,8 +6568,9 @@ class IBISTrueAgent:
                 display_insights = insights_list[:3]
                 insights_text = "·".join(display_insights)
 
+                score_display = f"{float(intel.get('score', 0) or 0):.2f}"
                 print(
-                    f"   │ {rank:<4} {sym:<10} {intel['score']:<8} ${intel['price']:<13.4f} {change_str:<10} {intel['volatility'] * 100:.2f}%   {vol_str:<18} {risk_indicator[risk_level]} {type_indicator[opp_type]} {insights_text:<30} │"
+                    f"   │ {rank:<4} {sym:<10} {score_display:<8} ${intel['price']:<13.4f} {change_str:<10} {intel['volatility'] * 100:.2f}%   {vol_str:<18} {risk_indicator[risk_level]} {type_indicator[opp_type]} {insights_text:<30} │"
                 )
 
         print(f"   └{'─' * 98}┘")
