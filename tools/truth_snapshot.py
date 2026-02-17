@@ -168,6 +168,8 @@ def main() -> int:
         'issues': issues,
         'state_positions': len(state_symbols),
         'db_positions': len(db_symbols),
+        'liquidity_history': state.get('liquidity_history', [])[-5:],
+        'liquidity_latest': state.get('liquidity_history', [])[-1] if state.get('liquidity_history') else {},
         'tracked_sell_symbols': len(tracked_sell_symbols),
         'tracked_buy_orders': len(buy_orders),
         'available_usdt': round(_num(cap.get('usdt_available', 0), 0), 6),

@@ -140,7 +140,8 @@ class PnLTracker:
     async def sync_trades_from_kucoin(self, client) -> List[Trade]:
         """Fetch all trades from KuCoin and sync with local history"""
         try:
-            data = await client._request("GET", "/api/v1/orders")
+            # Use retry logic for reliability
+            data = await client._request_with_retry("GET", "/api/v1/orders")
             items = data.get("items", []) if data else []
 
             # Filter to filled orders
@@ -150,16 +151,26 @@ class PnLTracker:
                 if o.get("isActive") == False and o.get("dealSize", "0") not in ["", "0", "0.0", 0]
             ]
 
-            # Convert to Trade objects
+            # Convert to Trade objects with validation
             new_trades = []
             for order in filled_orders:
-                trade = Trade.from_kucoin_order(order)
+                try:
+                    trade = Trade.from_kucoin_order(order)
 
-                # Check if we already have this trade
-                existing_ids = {t.order_id for t in self._trades}
-                if trade.order_id not in existing_ids:
-                    self._trades.append(trade)
-                    new_trades.append(trade)
+                    # Validate trade data
+                    if trade.price <= 0 or trade.size <= 0:
+                        logger.warning(f"Invalid trade data: {order.get('orderId', 'unknown')}")
+                        continue
+
+                    # Check if we already have this trade
+                    existing_ids = {t.order_id for t in self._trades}
+                    if trade.order_id not in existing_ids:
+                        self._trades.append(trade)
+                        new_trades.append(trade)
+
+                except Exception as e:
+                    logger.error(f"Error processing order {order.get('orderId', 'unknown')}: {e}")
+                    continue
 
             if new_trades:
                 logger.info(f"Synced {len(new_trades)} new trades from KuCoin")

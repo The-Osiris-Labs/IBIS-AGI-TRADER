@@ -112,13 +112,20 @@ def main() -> int:
         ignored = 0
         for rec in prepared:
             try:
+                symbol, side, order_id, quantity, price, fees, ts, pnl, pnl_pct, reason = rec
+                if pnl is None:
+                    pnl = 0.0
+                if pnl_pct is None:
+                    pnl_pct = 0.0
+                if not reason or str(reason).strip() == "":
+                    reason = "history_sync"
                 cur.execute(
                     """
                     INSERT OR IGNORE INTO trades
                     (symbol, side, order_id, quantity, price, fees, timestamp, pnl, pnl_pct, reason)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    rec,
+                    (symbol, side, order_id, quantity, price, fees, ts, pnl, pnl_pct, reason),
                 )
                 if cur.rowcount == 1:
                     inserted += 1

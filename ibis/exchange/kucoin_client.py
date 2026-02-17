@@ -94,8 +94,9 @@ class StaticResolver(AbstractResolver):
 
 
 DEFAULT_TIMEOUT = aiohttp.ClientTimeout(total=30, connect=10, sock_read=15, sock_connect=15)
-MAX_RETRIES = 3
-RETRY_DELAY = 1.0
+MAX_RETRIES = 5
+INITIAL_RETRY_DELAY = 1.0
+MAX_RETRY_DELAY = 30.0
 
 
 @dataclass
@@ -282,6 +283,10 @@ class KuCoinClient:
         self._tickers: Dict[str, Ticker] = {}
         self._orderbooks: Dict[str, OrderBook] = {}
         self._candles: Dict[str, List[Candle]] = {}
+        self._ticker_cache_time: Dict[str, int] = {}
+        self._orderbook_cache_time: Dict[str, int] = {}
+        self._candle_cache_time: Dict[str, int] = {}
+        self.CACHE_EXPIRY = 5  # seconds
 
         # Always initialize paper trading attributes
         self._paper_orders: Dict[str, TradeOrder] = {}
@@ -352,6 +357,7 @@ class KuCoinClient:
     async def _request_with_retry(
         self, method: str, path: str, query: str = "", body: str = ""
     ) -> Dict:
+        """Request with exponential backoff and better error handling"""
         last_error = None
         for attempt in range(MAX_RETRIES):
             try:
@@ -359,25 +365,40 @@ class KuCoinClient:
             except asyncio.TimeoutError as e:
                 last_error = e
                 if attempt < MAX_RETRIES - 1:
-                    wait_time = RETRY_DELAY * (2**attempt)
-                    print(f"Timeout on attempt {attempt + 1}, retrying in {wait_time}s...")
+                    wait_time = min(INITIAL_RETRY_DELAY * (2**attempt), MAX_RETRY_DELAY)
+                    logger.warning(f"Timeout on attempt {attempt + 1}, retrying in {wait_time}s...")
                     await asyncio.sleep(wait_time)
             except Exception as e:
                 last_error = e
                 error_str = str(e)
                 # If it's an auth error, don't retry - credentials are wrong
                 if "400005" in error_str or "Invalid" in error_str:
-                    print(f"⚠️ Authentication error - check API credentials: {e}")
+                    logger.error(f"⚠️ Authentication error - check API credentials: {e}")
                     # Return empty data instead of crashing
                     if "orders" in path:
                         return {"items": []}
                     return {}
-                if attempt < MAX_RETRIES - 1:
-                    wait_time = RETRY_DELAY * (2**attempt)
-                    if attempt == 0:
-                        print(f"⚠️ Rate limit, retrying in {wait_time}s...")
+                # Handle rate limits specially
+                if "429" in error_str or "rate limit" in error_str.lower():
+                    wait_time = min(INITIAL_RETRY_DELAY * (2**attempt) * 2, MAX_RETRY_DELAY)
+                    logger.warning(f"Rate limit exceeded, retrying in {wait_time}s...")
                     await asyncio.sleep(wait_time)
-        raise Exception(f"Max retries exceeded: {last_error}")
+                elif attempt < MAX_RETRIES - 1:
+                    wait_time = min(INITIAL_RETRY_DELAY * (2**attempt), MAX_RETRY_DELAY)
+                    logger.warning(
+                        f"Request failed on attempt {attempt + 1}, retrying in {wait_time}s..."
+                    )
+                    await asyncio.sleep(wait_time)
+
+        logger.error(f"Max retries exceeded for {method} {path}: {last_error}")
+        # Return safe default based on endpoint type
+        if "orders" in path:
+            return {"items": []}
+        elif "tickers" in path:
+            return {"ticker": []}
+        elif "candles" in path:
+            return []
+        return {}
 
     async def _request(self, method: str, path: str, query: str = "", body: str = "") -> Dict:
         session = await self._get_session()
@@ -395,6 +416,11 @@ class KuCoinClient:
                 full_query = query
             headers = self._sign(method, endpoint, full_query, body)
 
+            # Debug log
+            print(f"DEBUG: Request headers:")
+            for k, v in headers.items():
+                print(f"  {k}: {v}")
+
         url = f"{self.base_url}{path}"
         if query:
             url += f"?{query}"
@@ -404,6 +430,7 @@ class KuCoinClient:
         ) as resp:
             data = await resp.json()
             if data.get("code") != "200000":
+                print(f"DEBUG: API Response: {data}")
                 raise Exception(f"KuCoin API Error: {data}")
             return data.get("data", {})
 
@@ -640,12 +667,31 @@ class KuCoinClient:
         return await self._request_with_retry("GET", f"/api/v1/orders/{order_id}")
 
     async def get_ticker(self, symbol: str) -> Ticker:
+        """Get ticker with cache expiration"""
+        now = int(time.time())
+
+        # Check cache validity
+        if (
+            symbol in self._tickers
+            and (now - self._ticker_cache_time.get(symbol, 0)) < self.CACHE_EXPIRY
+        ):
+            return self._tickers[symbol]
+
         data = await self._request_with_retry(
             "GET", f"/api/v1/market/orderbook/level1?symbol={symbol}"
         )
         ticker_data = {"ticker": data} if "price" in data else data
         ticker = Ticker.from_response(ticker_data, symbol)
+
+        # Validate ticker data
+        if ticker.price <= 0 or ticker.buy <= 0 or ticker.sell <= 0:
+            logger.warning(f"Invalid ticker data for {symbol}: {ticker}")
+            # Return cached data if available
+            if symbol in self._tickers:
+                return self._tickers[symbol]
+
         self._tickers[symbol] = ticker
+        self._ticker_cache_time[symbol] = now
         return ticker
 
     async def get_tickers(self) -> List[Ticker]:
@@ -671,6 +717,18 @@ class KuCoinClient:
         start: int = None,
         end: int = None,
     ) -> List[Candle]:
+        """Get candles with cache expiration"""
+        now = int(time.time())
+
+        # Check cache validity for recent candle data
+        if (
+            symbol in self._candles
+            and (now - self._candle_cache_time.get(symbol, 0)) < self.CACHE_EXPIRY
+        ):
+            # If no time range specified, return cached data
+            if not start and not end:
+                return self._candles[symbol]
+
         params = f"symbol={symbol}&type={candle_type}"
         if start:
             params += f"&startAt={start}"
@@ -682,10 +740,39 @@ class KuCoinClient:
         candles.reverse()
         if limit and len(candles) > limit:
             candles = candles[-limit:]
-        self._candles[symbol] = candles
-        return candles
+
+        # Validate candle data
+        valid_candles = []
+        for candle in candles:
+            if (
+                candle.open > 0
+                and candle.high > 0
+                and candle.low > 0
+                and candle.close > 0
+                and candle.volume > 0
+            ):
+                valid_candles.append(candle)
+
+        if len(valid_candles) < len(candles):
+            logger.warning(
+                f"Filtered out {len(candles) - len(valid_candles)} invalid candles for {symbol}"
+            )
+
+        self._candles[symbol] = valid_candles
+        self._candle_cache_time[symbol] = now
+        return valid_candles
 
     async def get_orderbook(self, symbol: str, limit: int = 20) -> OrderBook:
+        """Get order book with cache expiration"""
+        now = int(time.time())
+
+        # Check cache validity
+        if (
+            symbol in self._orderbooks
+            and (now - self._orderbook_cache_time.get(symbol, 0)) < self.CACHE_EXPIRY
+        ):
+            return self._orderbooks[symbol]
+
         # Map limit to KuCoin's available levels: 20, 50, 100
         depth = 20
         if limit >= 100:
@@ -697,7 +784,16 @@ class KuCoinClient:
             "GET", f"/api/v1/market/orderbook/level2_{depth}?symbol={symbol}"
         )
         orderbook = OrderBook.from_response(data, symbol)
+
+        # Validate order book data
+        if not orderbook.bids or not orderbook.asks:
+            logger.warning(f"Invalid order book data for {symbol}")
+            # Return cached data if available
+            if symbol in self._orderbooks:
+                return self._orderbooks[symbol]
+
         self._orderbooks[symbol] = orderbook
+        self._orderbook_cache_time[symbol] = now
         return orderbook
 
     async def create_order(

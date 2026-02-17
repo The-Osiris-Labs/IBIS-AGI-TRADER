@@ -174,7 +174,17 @@ class IbisDB:
             row = conn.execute("SELECT value FROM system_state WHERE key = ?", (key,)).fetchone()
             return row[0] if row else default
 
-    def close_position(self, symbol, exit_price, reason="CLOSED", actual_fee=None):
+    def close_position(
+        self,
+        symbol,
+        exit_price,
+        reason="CLOSED",
+        actual_fee=None,
+        pnl=None,
+        pnl_pct=None,
+        order_id=None,
+        fees=None,
+    ):
         """Close a position and calculate net profit including fees.
 
         Args:
@@ -204,28 +214,28 @@ class IbisDB:
                 entry_val = quantity * entry_price
                 exit_val = quantity * exit_price
 
-                # Use actual fee if provided, otherwise estimate
-                if actual_fee is not None and actual_fee > 0:
+                if fees is not None:
+                    exit_fee = fees
+                elif actual_fee is not None and actual_fee > 0:
                     exit_fee = actual_fee
-                    fee_rate = exit_fee / exit_val if exit_val > 0 else default_friction
-                    # Use the higher of actual fee rate or default (to avoid underestimating)
-                    friction = max(fee_rate, default_friction)
                 else:
                     exit_fee = exit_val * default_friction
-                    friction = default_friction
 
-                # Net Profit = ExitVal - EntryVal - TotalFees
-                net_pnl = exit_val - entry_val - entry_fee - exit_fee
-                pnl_pct = (exit_price / entry_price - 1) - friction
+                net_pnl = exit_val - entry_val - entry_fee - exit_fee if pnl is None else pnl
+                if pnl_pct is None:
+                    effective_friction = exit_fee / exit_val if exit_val > 0 else default_friction
+                    friction = max(effective_friction, default_friction)
+                    pnl_pct = (exit_price / entry_price - 1) - friction
 
                 # Log trade with actual fees
                 conn.execute(
                     """
                 INSERT INTO trades (symbol, side, order_id, quantity, price, fees, pnl, pnl_pct, reason)
-                VALUES (?, 'SELL', NULL, ?, ?, ?, ?, ?, ?)
+                VALUES (?, 'SELL', ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         symbol,
+                        order_id,
                         quantity,
                         exit_price,
                         entry_fee + exit_fee,

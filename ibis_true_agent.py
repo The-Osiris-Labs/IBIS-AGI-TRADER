@@ -19,7 +19,7 @@ import math
 from decimal import Decimal, ROUND_DOWN, ROUND_UP, InvalidOperation
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-from ibis.exchange.kucoin_client import get_kucoin_client
+from ibis.exchange.kucoin_client import get_kucoin_client, clear_kucoin_client_instance
 from ibis.free_intelligence import FreeIntelligence
 from ibis.cross_exchange_monitor import CrossExchangeMonitor
 from ibis.core.trading_constants import TRADING, SCORE_THRESHOLDS, RISK_CONFIG
@@ -269,6 +269,7 @@ class IBISTrueAgent:
                     "agent_mode": self.state.get("agent_mode", "ADAPTIVE"),
                     "daily": self.state.get("daily", {}),
                     "capital_awareness": self.state.get("capital_awareness", {}),
+                    "liquidity_history": self.state.get("liquidity_history", [])[-20:],
                     "updated": datetime.now().isoformat(),
                 }
                 tmp_state_file = f"{self.state_file}.tmp"
@@ -312,7 +313,7 @@ class IBISTrueAgent:
             "max_daily_loss": TRADING.RISK.BASE_RISK_PER_TRADE * 5,
             "min_liquidity": TRADING.FILTER.MIN_LIQUIDITY,
             "max_spread": TRADING.FILTER.MAX_SPREAD,
-            "min_score": TRADING.INTELLIGENCE.AGI_CONFIDENCE_THRESHOLD * 100,
+            "min_score": 60,
             "stablecoins": TRADING.FILTER.STABLECOINS,
             "ignored_symbols": TRADING.FILTER.IGNORED_SYMBOLS,
             "base_position_pct": TRADING.MULTIPLIERS.BASE_SIZE_PCT * 100,
@@ -358,7 +359,7 @@ class IBISTrueAgent:
             "reconcile_cycle_interval": 10,
             "fee_profile_history_limit": 400,
             "execution_fee_guard_enabled": True,
-            "execution_fee_max_per_side": 0.0025,
+            "execution_fee_max_per_side": 0.0035,
             "execution_fee_override_score": 90,
             "execution_fee_min_symbol_fills": 4,
             "execution_fee_blocklist_max_symbols": 30,
@@ -472,6 +473,7 @@ class IBISTrueAgent:
             "agent_mode": str(saved_state.get("agent_mode", "MICRO_HUNTER")),
             "capital_awareness": default_capital,
             "execution_meta": dict(saved_state.get("execution_meta", {})),
+            "liquidity_history": saved_state.get("liquidity_history", [])[-20:],
         }
 
         if "last_sell_reprice" not in self.state["execution_meta"]:
@@ -1100,7 +1102,9 @@ class IBISTrueAgent:
     async def _refresh_strategy_available(self, strategy: Dict, context: str = "") -> float:
         """Refresh deployable USDT from capital awareness without double-subtraction."""
         capital = await self.update_capital_awareness()
-        deployable = float(capital.get("real_trading_capital", capital.get("usdt_available", 0)) or 0)
+        deployable = float(
+            capital.get("real_trading_capital", capital.get("usdt_available", 0)) or 0
+        )
         strategy["available"] = max(0.0, deployable)
         if context:
             self.log_event(f"   💵 Capital refresh ({context}): ${strategy['available']:.2f}")
@@ -1164,7 +1168,7 @@ class IBISTrueAgent:
         """Symbols to avoid for execution efficiency based on observed fee pressure."""
         profile = self._load_symbol_fee_profile()
         min_fills = int(self.config.get("execution_fee_min_symbol_fills", 4))
-        max_fee = float(self.config.get("execution_fee_max_per_side", 0.0025))
+        max_fee = float(self.config.get("execution_fee_max_per_side", 0.0035))
         cap = int(self.config.get("execution_fee_blocklist_max_symbols", 30))
         offenders = [
             (sym, rate)
@@ -1190,7 +1194,9 @@ class IBISTrueAgent:
         if latency_seconds <= 0:
             return
         mem = self.agent_memory.setdefault("fill_latency_by_symbol", {})
-        row = mem.get(symbol, {"samples": 0, "avg_seconds": 0.0, "ema_seconds": 0.0, "last_seconds": 0.0})
+        row = mem.get(
+            symbol, {"samples": 0, "avg_seconds": 0.0, "ema_seconds": 0.0, "last_seconds": 0.0}
+        )
         prev_n = int(row.get("samples", 0))
         prev_avg = float(row.get("avg_seconds", 0.0))
         prev_ema = float(row.get("ema_seconds", 0.0))
@@ -1258,7 +1264,9 @@ class IBISTrueAgent:
 
         return score - fee_penalty - latency_penalty - queue_penalty - spread_penalty
 
-    def _admission_rank_opportunities(self, opportunities: List[Dict], strategy: Dict) -> List[Dict]:
+    def _admission_rank_opportunities(
+        self, opportunities: List[Dict], strategy: Dict
+    ) -> List[Dict]:
         """Sort/filter entry candidates by execution edge while keeping strategy score intact."""
         if not self.config.get("entry_admission_enabled", True) or not opportunities:
             return opportunities
@@ -1412,7 +1420,9 @@ class IBISTrueAgent:
     def _next_stale_buy_reentry_cooldown(self, symbol: str) -> int:
         """Escalate reentry cooldown for symbols repeatedly canceled as stale."""
         base_seconds = max(0, int(self.config.get("stale_buy_reentry_cooldown_seconds", 75)))
-        max_seconds = max(base_seconds, int(self.config.get("stale_buy_reentry_cooldown_max_seconds", 240)))
+        max_seconds = max(
+            base_seconds, int(self.config.get("stale_buy_reentry_cooldown_max_seconds", 240))
+        )
         counts = self.agent_memory.setdefault("stale_buy_cancel_counts", {})
         n = int(counts.get(symbol, 0) or 0) + 1
         counts[symbol] = n
@@ -1750,7 +1760,8 @@ class IBISTrueAgent:
         self._load_state()
         self.state["agent_mode"] = "HYPER_INTELLIGENT"
 
-        # Initialize KuCoin client
+        # Initialize KuCoin client (clear any existing singleton instance)
+        clear_kucoin_client_instance()
         self.client = get_kucoin_client()
         if not self.client:
             raise Exception("Failed to initialize KuCoin client")
@@ -1983,15 +1994,21 @@ class IBISTrueAgent:
                     0,
                     min(
                         100,
-                        50
-                        + (momentum_5m * 6.0)
-                        + (momentum_15m * 8.0)
-                        + (momentum_1h_raw * 4.0),
+                        50 + (momentum_5m * 6.0) + (momentum_15m * 8.0) + (momentum_1h_raw * 4.0),
                     ),
                 )
                 volume_momentum_score = max(0, min(100, 50 + (volume_momentum * 0.4)))
                 blended_volume_score = max(
-                    0, min(100, (volume_momentum_score * 0.65) + (self._calculate_liquidity_score(volume_24h) * 0.35))
+                    0,
+                    min(
+                        100,
+                        (volume_momentum_score * 0.65)
+                        + (self._calculate_liquidity_score(volume_24h) * 0.35),
+                    ),
+                )
+
+                liquidity_signals = await self._assess_liquidity_signals(
+                    sym, price, volatility, volumes
                 )
 
                 # Create comprehensive symbol data for unified scoring
@@ -2020,6 +2037,12 @@ class IBISTrueAgent:
                     "mtf_score": momentum_mtf_score,
                     "volume_score": blended_volume_score,
                     "sentiment_score": fg_score,
+                    "volume_spike_ratio": liquidity_signals["volume_spike_ratio"],
+                    "orderbook_spread": liquidity_signals["orderbook_spread"],
+                    "orderbook_bid_pressure": liquidity_signals["orderbook_bid_pressure"],
+                    "orderbook_ask_pressure": liquidity_signals["orderbook_ask_pressure"],
+                    "orderbook_imbalance": liquidity_signals["orderbook_imbalance"],
+                    "orderbook_available": liquidity_signals["orderbook_available"],
                 }
 
                 # Calculate unified score
@@ -2040,6 +2063,17 @@ class IBISTrueAgent:
 
                 # Calculate final score with funnel adjustment
                 score = unified_result["score"] * (0.8 + (funnel_score / 500))
+                accumulation_confidence = liquidity_signals.get("accumulation_confidence", 1.0)
+                liquidity_boost = max(0.0, liquidity_signals["volume_spike_ratio"] - 1.0) * 4.0
+                pressure_advantage = (
+                    liquidity_signals["orderbook_bid_pressure"]
+                    - liquidity_signals["orderbook_ask_pressure"]
+                )
+                liquidity_boost += max(0.0, pressure_advantage) * 8.0
+                liquidity_boost += max(0.0, liquidity_signals["orderbook_imbalance"]) * 6.0
+                liquidity_boost += max(0.0, accumulation_confidence - 1.0) * 5.0
+                liquidity_bonus = min(7.0, liquidity_boost)
+                score += liquidity_bonus
 
                 # Get snipe score for comparison
                 if len(closes) >= 10 and len(volumes) >= 10:
@@ -2383,6 +2417,105 @@ class IBISTrueAgent:
             return 60
         else:
             return 40
+
+    def _calculate_volume_spike_ratio(self, volumes: List[float], recent_window: int = 5) -> float:
+        """Measure recent volume spikes relative to historical averages."""
+        if not volumes:
+            return 1.0
+
+        recent_window = min(recent_window, len(volumes))
+        recent_avg = sum(volumes[-recent_window:]) / recent_window
+        historical = volumes[:-recent_window]
+        if historical:
+            historical_avg = sum(historical) / len(historical)
+        else:
+            historical_avg = recent_avg if recent_avg > 0 else 1.0
+
+        if historical_avg <= 0:
+            historical_avg = 1.0
+
+        ratio = recent_avg / historical_avg
+        return max(0.5, min(3.0, ratio))
+
+    async def _assess_liquidity_signals(
+        self, symbol: str, price: float, volatility: float, volumes: List[float]
+    ) -> Dict[str, float]:
+        """Gather liquidity/order-flow features from candles + orderbook."""
+        base_spread = min(volatility * 0.3 if volatility else 0.02, 0.02)
+        ratio = self._calculate_volume_spike_ratio(volumes)
+        signals: Dict[str, float] = {
+            "volume_spike_ratio": ratio,
+            "orderbook_spread": base_spread,
+            "orderbook_bid_pressure": 0.5,
+            "orderbook_ask_pressure": 0.5,
+            "orderbook_imbalance": 0.0,
+            "orderbook_available": 0.0,
+            "accumulation_confidence": 1.0,
+        }
+
+        if not self.client:
+            return signals
+
+        orderbook_data = None
+        try:
+            orderbook = await self.client.get_orderbook(f"{symbol}-USDT", limit=20)
+            orderbook_data = {
+                "bids": orderbook.bids or [],
+                "asks": orderbook.asks or [],
+                "timestamp": time.time(),
+            }
+        except Exception:
+            cached = self.orderbook_cache.get(symbol)
+            if cached and (time.time() - cached.get("timestamp", 0)) < 60:
+                orderbook_data = cached
+
+        if orderbook_data:
+            self.orderbook_cache[symbol] = orderbook_data
+            bids = orderbook_data.get("bids", []) or []
+            asks = orderbook_data.get("asks", []) or []
+            if bids and asks and price > 0:
+                best_bid = bids[0][0]
+                best_ask = asks[0][0]
+                spread = max(best_ask - best_bid, 0.0)
+                signals["orderbook_spread"] = min(spread / price, 0.05)
+                bid_volume = sum(b[1] for b in bids[:5])
+                ask_volume = sum(a[1] for a in asks[:5])
+                total = bid_volume + ask_volume
+                if total > 0:
+                    bid_pressure = bid_volume / total
+                    ask_pressure = ask_volume / total
+                else:
+                    bid_pressure = 0.5
+                    ask_pressure = 0.5
+                imbalance = bid_pressure - ask_pressure
+                signals.update(
+                    {
+                        "orderbook_bid_pressure": bid_pressure,
+                        "orderbook_ask_pressure": ask_pressure,
+                        "orderbook_imbalance": imbalance,
+                    }
+                )
+                signals["orderbook_available"] = 1.0
+                signals["accumulation_confidence"] = ratio * (1 + max(0.0, imbalance))
+        return signals
+
+    def _record_liquidity_history(self, opportunities: List[Dict[str, Any]]) -> None:
+        history = self.state.setdefault("liquidity_history", [])
+        entries = []
+        ts = datetime.now().isoformat()
+        for opp in opportunities[:3]:
+            entries.append(
+                {
+                    "symbol": opp.get("symbol"),
+                    "score": opp.get("score"),
+                    "volume_spike_ratio": opp.get("volume_spike_ratio"),
+                    "orderbook_imbalance": opp.get("orderbook_imbalance"),
+                    "accumulation_confidence": opp.get("accumulation_confidence"),
+                }
+            )
+        if entries:
+            history.append({"ts": ts, "entries": entries})
+            self.state["liquidity_history"] = history[-20:]
 
     def _calculate_technical_strength(self, momentum, change_24h, volatility=0.05, volume_24h=0):
         """Use unified scorer for technical strength calculation"""
@@ -3772,7 +3905,9 @@ class IBISTrueAgent:
             return_pct = 0
 
         # Calculate additional performance metrics
-        total_trades = int(self.state["daily"].get("orders_filled", self.state["daily"].get("trades", 0)))
+        total_trades = int(
+            self.state["daily"].get("orders_filled", self.state["daily"].get("trades", 0))
+        )
         wins = int(self.state["daily"].get("wins", 0))
         losses = int(self.state["daily"].get("losses", 0))
         wl_samples = wins + losses
@@ -3940,7 +4075,11 @@ class IBISTrueAgent:
             "AGGRESSIVE": {"target": base_tp, "stop": base_sl, "conf": 65},
             "CONFIDENT": {"target": base_tp, "stop": base_sl, "conf": 80},
             "HYPER": {"target": base_tp, "stop": base_sl, "conf": 70},
-            "HYPER_INTELLIGENT": {"target": base_tp, "stop": base_sl, "conf": 70},
+            "HYPER_INTELLIGENT": {
+                "target": base_tp,
+                "stop": base_sl,
+                "conf": TRADING.SCORE.MIN_THRESHOLD,
+            },
             "OBSERVING": {"target": 0, "stop": 0, "conf": 100},
         }
 
@@ -4233,8 +4372,19 @@ class IBISTrueAgent:
         min_threshold = self.config.get(
             "min_score", 70
         )  # More aggressive threshold for opportunities
+        log_event(f"   📄 DEBUG: config min_score={self.config.get('min_score', 'not set')}")
+        liquidity_ratio_threshold = float(
+            self.config.get("liquidity_volume_spike_ratio_threshold", 1.00)
+        )
+        liquidity_imbalance_threshold = float(
+            self.config.get("liquidity_orderbook_imbalance_threshold", 0.03)
+        )
+        accumulation_confidence_threshold = float(
+            self.config.get("liquidity_accumulation_confidence_threshold", 1.1)
+        )
         fee_guard_enabled = bool(self.config.get("execution_fee_guard_enabled", True))
-        max_fee_per_side = float(self.config.get("execution_fee_max_per_side", 0.0025))
+        max_fee_per_side = float(self.config.get("execution_fee_max_per_side", 0.0035))
+        log_event(f"   📄 Configured fee cap: {max_fee_per_side * 100:.3f}%")
         fee_override_score = float(self.config.get("execution_fee_override_score", 90))
         fee_profile = self._load_symbol_fee_profile()
         fee_blocklist = self._get_execution_fee_blocklist()
@@ -4242,9 +4392,13 @@ class IBISTrueAgent:
         latency_override_score = float(self.config.get("latency_guard_override_score", 90))
         log_event(f"   🎯 Filtering with MIN_SCORE: {min_threshold:.1f}")
 
+        accumulation_hits_cycle = 0
         # 🎯 STRICT QUALITY FILTERING
+        buy_orders = set(self.state.get("capital_awareness", {}).get("buy_orders", {}))
         for sym, intel in sorted_opps:
             if sym in held:
+                continue
+            if sym in buy_orders:
                 continue
 
             score = intel["score"]  # Base score without artificial boost
@@ -4256,6 +4410,11 @@ class IBISTrueAgent:
                     f"      ❌ REJECTED: {sym} (fee-blocklisted {sym_fee_rate * 100:.3f}%/side, fills={self._symbol_fee_counts.get(sym, 0)})"
                 )
                 continue
+            # Force fee cap to 0.35% for debugging
+            max_fee_per_side = 0.0035
+            log_event(
+                f"   📄 DEBUG: {sym} fee_rate={sym_fee_rate * 100:.3f}%, max_fee={max_fee_per_side * 100:.3f}%, score={score:.1f}"
+            )
             if fee_guard_enabled and sym_fee_rate > max_fee_per_side and score < fee_override_score:
                 log_event(
                     f"      ❌ REJECTED: {sym} (high fee {sym_fee_rate * 100:.3f}%/side > {max_fee_per_side * 100:.3f}% cap)"
@@ -4267,6 +4426,28 @@ class IBISTrueAgent:
                     f"      ❌ REJECTED: {sym} (slow fills avg={float(row.get('avg_seconds', 0)):.1f}s, samples={int(row.get('samples', 0))})"
                 )
                 continue
+
+            # Liquidity confidence gate
+            liquidity_ratio = float(intel.get("volume_spike_ratio", 1.0))
+            orderbook_available = bool(intel.get("orderbook_available", 0))
+            imbalance = float(intel.get("orderbook_imbalance", 0.0))
+            if liquidity_ratio_threshold > 1.0 and liquidity_ratio < liquidity_ratio_threshold:
+                log_event(
+                    f"      ❌ REJECTED: {sym} (Liquidity ratio {liquidity_ratio:.2f} < {liquidity_ratio_threshold:.2f})"
+                )
+                continue
+            if orderbook_available and imbalance < liquidity_imbalance_threshold:
+                log_event(
+                    f"      ❌ REJECTED: {sym} (Orderbook imbalance {imbalance:.2f} < {liquidity_imbalance_threshold:.2f})"
+                )
+                continue
+
+            acc_confidence = float(intel.get("accumulation_confidence", 1.0))
+            acc_bonus = 0.0
+            if acc_confidence >= accumulation_confidence_threshold:
+                acc_bonus = min(8.0, (acc_confidence - accumulation_confidence_threshold) * 8.0)
+                score += acc_bonus
+                accumulation_hits_cycle += 1
 
             # Reject low quality opportunities early
             if score < min_threshold:
@@ -4375,6 +4556,8 @@ class IBISTrueAgent:
                     agi_action = "STRONG_BUY"
                 elif score >= 70:
                     agi_action = "BUY"
+                else:
+                    agi_action = "HOLD"
                 agi_reason = agi_signal_dict.get("reasoning", "No reasoning")
                 self.log_event(
                     f"      🧠 AGI: {intel['symbol']} | score: {agi_score:.1f} | action: {agi_action} | {agi_reason[:30]}"
@@ -4417,6 +4600,14 @@ class IBISTrueAgent:
                     components.append(f"OF:+{intel.get('order_flow', 0):.0f}")
                 if agi_signal and agi_signal.confidence > 70:
                     components.append(f"AGI:{agi_signal.confidence:.0f}")
+                volume_spike_ratio = intel.get("volume_spike_ratio", 1.0)
+                if volume_spike_ratio > 1.05:
+                    components.append(f"VS:+{volume_spike_ratio:.2f}")
+                imbalance = intel.get("orderbook_imbalance", 0.0)
+                if imbalance > 0.02:
+                    components.append(f"OB:+{imbalance:.2f}")
+                if acc_bonus > 0:
+                    components.append(f"ACC:+{acc_confidence:.2f}")
 
                 # 🎯 COMPARISON - How this ranks vs other opportunities
                 rank = len(opportunities) + 1
@@ -4461,6 +4652,13 @@ class IBISTrueAgent:
                         f"Rejected: {', '.join(reject_reasons)}"
                     )
 
+        if accumulation_hits_cycle > 0:
+            total_hits = self.agent_memory.get("accumulation_hits", 0) + accumulation_hits_cycle
+            self.agent_memory["accumulation_hits"] = total_hits
+            log_event(
+                f"   🔁 Accumulation hits this cycle: {accumulation_hits_cycle} (total {total_hits})"
+            )
+        self._record_liquidity_history(opportunities)
         log_event(f"   📊 Found {len(opportunities)} valid opportunities this cycle")
         return opportunities
 
@@ -4602,7 +4800,11 @@ class IBISTrueAgent:
             tp = price * (1 + tp_pct)
             sl = price * (1 - sl_pct)
 
-        sl_str = f"${sl:.4f} (-{sl_pct * 100:.1f}%)"
+        # Round TP and SL to valid price increments
+        tp = round_up_to_increment(tp, price_increment)  # Target should be higher, round up
+        sl = round_down_to_increment(sl, price_increment)  # Stop should be lower, round down
+
+        sl_str = f"${sl:.8f} (-{sl_pct * 100:.1f}%)"
 
         self.log_event(f"      📊 Position sizing: ${position_value:.2f} | Qty: {quantity:.8f}")
 
@@ -4611,10 +4813,10 @@ class IBISTrueAgent:
         print(f"   ╠{'═' * 68}╣")
         print(f"   ║ Symbol: {symbol:<56} ║")
         print(f"   ║ Score: {score}/100 {self._get_score_label(score):<42} ║")
-        print(f"   ║ Price: ${price:<55.4f} ║")
+        print(f"   ║ Price: ${price:<55.8f} ║")
         print(f"   ║ Position: ${position_value:<54.2f} ║")
         print(f"   ║ Quantity: {quantity:<56} ║")
-        print(f"   ║ Target: ${tp:<55.4f} (+{tp_pct * 100:.1f}%) ║")
+        print(f"   ║ Target: ${tp:<55.8f} (+{tp_pct * 100:.1f}%) ║")
         print(f"   ║ Stop: {sl_str:<55} ║")
 
         # 🚀 SUPREME INSIGHT
@@ -4876,8 +5078,16 @@ class IBISTrueAgent:
 
         tp = price * (1 + strategy["target_profit"])
         sl = None if strategy.get("stop_loss") is None else price * (1 - strategy["stop_loss"])
+
+        # Round TP and SL to valid price increments
+        if price_increment > 0:
+            if tp:
+                tp = round_up_to_increment(tp, price_increment)
+            if sl:
+                sl = round_down_to_increment(sl, price_increment)
+
         sl_str = (
-            f"${sl:.4f} (-{strategy['stop_loss'] * 100:.1f}%)"
+            f"${sl:.8f} (-{strategy['stop_loss'] * 100:.1f}%)"
             if sl and strategy.get("stop_loss") is not None
             else "Manual/Trailing"
         )
@@ -4887,10 +5097,10 @@ class IBISTrueAgent:
         print(f"   ╠{'═' * 68}╣")
         print(f"   ║ Symbol: {symbol:<56} ║")
         print(f"   ║ Score: {score}/100 {self._get_score_label(score):<42} ║")
-        print(f"   ║ Price: ${price:<55.4f} ║")
+        print(f"   ║ Price: ${price:<55.8f} ║")
         print(f"   ║ Position: ${position_value:<54.2f} ║")
         print(f"   ║ Quantity: {quantity:<56} ║")
-        print(f"   ║ Target: ${tp:<56.4f} (+{strategy['target_profit'] * 100:.1f}%) ║")
+        print(f"   ║ Target: ${tp:<56.8f} (+{strategy['target_profit'] * 100:.1f}%) ║")
         print(f"   ║ Stop: {sl_str:<55} ║")
         print(f"   ║ Regime: {strategy['regime']:<54} ║")
         print(f"   ║ Mode: {strategy['mode']:<55} ║")
@@ -4949,7 +5159,9 @@ class IBISTrueAgent:
         to_close = []
         DUST_THRESHOLD = 1.0  # $1 minimum to be considered a position
         capital = await self.update_capital_awareness()
-        real_capital = float(capital.get("real_trading_capital", capital.get("usdt_available", 0)) or 0)
+        real_capital = float(
+            capital.get("real_trading_capital", capital.get("usdt_available", 0)) or 0
+        )
         recycle_capital_trigger = float(
             self.config.get("recycle_capital_trigger_usdt", TRADING.POSITION.MIN_CAPITAL_PER_TRADE)
         )
@@ -5062,7 +5274,9 @@ class IBISTrueAgent:
                     hold_hours = 0
 
             if reason == "TAKE_PROFIT":
-                exit_detail = f"Target reached (+{pnl_pct * 100:.2f}%, +${actual_profit:.4f} actual)"
+                exit_detail = (
+                    f"Target reached (+{pnl_pct * 100:.2f}%, +${actual_profit:.4f} actual)"
+                )
             elif reason == "STOP_LOSS":
                 exit_detail = f"Stop loss triggered ({pnl_pct * 100:.2f}%, ${actual_profit:.4f})"
             elif reason == "ALPHA_DECAY":
@@ -5089,9 +5303,7 @@ class IBISTrueAgent:
         stale_buy_seconds = int(self.config.get("stale_buy_cancel_seconds", 90))
         pressure_relief_seconds = int(self.config.get("stale_buy_pressure_relief_seconds", 45))
         pressure_trigger = int(self.config.get("stale_buy_pressure_trigger", 4))
-        pressure_min_pending = max(
-            1, int(self.config.get("stale_buy_pressure_min_pending", 2))
-        )
+        pressure_min_pending = max(1, int(self.config.get("stale_buy_pressure_min_pending", 2)))
         stale_buy_hard_seconds = int(
             self.config.get(
                 "stale_buy_hard_seconds",
@@ -5110,8 +5322,11 @@ class IBISTrueAgent:
             stale_buy_seconds = min(stale_buy_seconds, pressure_relief_seconds)
         if under_capital_pressure:
             # Reclaim deployable USDT quickly when available is below the $11 hard minimum.
-            stale_buy_max_per_cycle = max(stale_buy_max_per_cycle, min(len(buy_orders), pressure_trigger))
+            stale_buy_max_per_cycle = max(
+                stale_buy_max_per_cycle, min(len(buy_orders), pressure_trigger)
+            )
         live_balances_cache = None
+        progress_map = self.agent_memory.setdefault("buy_order_progress", {})
         for symbol, order_info in list(buy_orders.items()):
             try:
                 order_id = order_info.get("order_id")
@@ -5137,7 +5352,9 @@ class IBISTrueAgent:
                 )
 
                 if not is_active and (deal_size > 0 or deal_funds > 0):
-                    actual_price = float(avg_price if avg_price > 0 else order_info.get("price", 0) or 0)
+                    actual_price = float(
+                        avg_price if avg_price > 0 else order_info.get("price", 0) or 0
+                    )
                     actual_quantity = float(deal_size or 0)
                     if actual_quantity <= 0 and deal_funds > 0 and actual_price > 0:
                         actual_quantity = deal_funds / actual_price
@@ -5149,7 +5366,9 @@ class IBISTrueAgent:
                     except Exception:
                         created_at_ms = 0
                     if created_at_ms > 0:
-                        fill_latency_seconds = max(0.0, (time.time() * 1000 - created_at_ms) / 1000.0)
+                        fill_latency_seconds = max(
+                            0.0, (time.time() * 1000 - created_at_ms) / 1000.0
+                        )
                     elif order_info.get("timestamp"):
                         try:
                             opened_at = datetime.fromisoformat(str(order_info.get("timestamp")))
@@ -5201,8 +5420,8 @@ class IBISTrueAgent:
                         prev_samples = int(daily.get("buy_fill_samples", 0) or 0)
                         new_samples = prev_samples + 1
                         daily["avg_buy_fill_latency_seconds"] = (
-                            ((prev_avg * prev_samples) + fill_latency_seconds) / new_samples
-                        )
+                            (prev_avg * prev_samples) + fill_latency_seconds
+                        ) / new_samples
                         daily["buy_fill_samples"] = new_samples
                         self._save_memory()
 
@@ -5213,34 +5432,54 @@ class IBISTrueAgent:
 
                     # Delete the pending order regardless
                     del buy_orders[symbol]
+                    progress_map.pop(symbol, None)
                     self._save_state()
 
                 elif is_active:
+                    now_ts = time.time()
+                    progress = progress_map.setdefault(
+                        symbol, {"filled": 0.0, "last_progress": now_ts}
+                    )
+                    if deal_size > (progress.get("filled", 0.0) or 0.0) + 1e-9:
+                        progress_map[symbol] = {"filled": deal_size, "last_progress": now_ts}
+                    idle_seconds = max(0.0, now_ts - progress.get("last_progress", now_ts))
+                    partial_hard_stale = deal_size > 0 and idle_seconds >= stale_buy_hard_seconds
                     # Throughput policy: actively free capital from stale, unfilled buy orders.
                     # Only applies to fully unfilled active buys.
                     if canceled_count >= stale_buy_max_per_cycle:
                         continue
                     created_at = int(getattr(order, "created_at", 0) or 0)
                     age_seconds = (
-                        max(0.0, (time.time() * 1000 - created_at) / 1000.0) if created_at > 0 else 0
+                        max(0.0, (time.time() * 1000 - created_at) / 1000.0)
+                        if created_at > 0
+                        else 0
                     )
                     soft_stale = age_seconds >= stale_buy_seconds and (
                         len(buy_orders) >= pressure_trigger
                         or (under_capital_pressure and len(buy_orders) >= pressure_min_pending)
                     )
                     hard_stale = age_seconds >= stale_buy_hard_seconds
-                    if deal_size <= 0 and created_at > 0 and (soft_stale or hard_stale):
+                    if (
+                        deal_size <= 0 and created_at > 0 and (soft_stale or hard_stale)
+                    ) or partial_hard_stale:
                         try:
                             await self.client.cancel_order(order_id)
+                            log_tail = (
+                                f"(partial stale: idle={idle_seconds:.0f}s)"
+                                if partial_hard_stale
+                                else f"soft={soft_stale} hard={hard_stale} (soft>={stale_buy_seconds}s hard>={stale_buy_hard_seconds}s)"
+                            )
                             self.log_event(
                                 f"   [STALE BUY CANCELED] {symbol}: age={age_seconds:.0f}s | "
-                                f"soft={soft_stale} hard={hard_stale} (soft>={stale_buy_seconds}s hard>={stale_buy_hard_seconds}s) | "
-                                f"avail=${available_usdt:.2f} | pending={len(buy_orders)} | pressure={under_capital_pressure}"
+                                f"{log_tail} | avail=${available_usdt:.2f} | pending={len(buy_orders)} | pressure={under_capital_pressure}"
                             )
                             if symbol in buy_orders:
                                 del buy_orders[symbol]
+                            progress_map.pop(symbol, None)
                             daily = self.state.setdefault("daily", {})
-                            daily["orders_cancelled"] = int(daily.get("orders_cancelled", 0) or 0) + 1
+                            daily["orders_cancelled"] = (
+                                int(daily.get("orders_cancelled", 0) or 0) + 1
+                            )
                             prev_stale_cancels = daily.get("stale_buy_cancels", 0)
                             try:
                                 prev_stale_cancels = int(prev_stale_cancels or 0)
@@ -5262,7 +5501,9 @@ class IBISTrueAgent:
                     # Order inactive with zero reported fills. Check live balance to avoid missing fills.
                     if live_balances_cache is None:
                         try:
-                            live_balances_cache = await self.client.get_all_balances(min_value_usd=0)
+                            live_balances_cache = await self.client.get_all_balances(
+                                min_value_usd=0
+                            )
                         except Exception:
                             live_balances_cache = {}
 
@@ -5371,7 +5612,9 @@ class IBISTrueAgent:
                     break
 
                 # Dict-oriented handling (live KuCoin path)
-                order_side = str(order.get("side", "")).lower().strip() if isinstance(order, dict) else ""
+                order_side = (
+                    str(order.get("side", "")).lower().strip() if isinstance(order, dict) else ""
+                )
                 if order_side != "sell":
                     continue
 
@@ -5430,7 +5673,10 @@ class IBISTrueAgent:
                 if spread > price_increment * 2:
                     target_price = max(best_bid + price_increment, target_price - price_increment)
                 if age_seconds >= hard_seconds:
-                    target_price = max(best_bid + price_increment, min(target_price, best_bid + (2 * price_increment)))
+                    target_price = max(
+                        best_bid + price_increment,
+                        min(target_price, best_bid + (2 * price_increment)),
+                    )
 
                 # Round down to valid increment.
                 target_price = round_down_to_increment(target_price, price_increment)
@@ -5742,9 +5988,8 @@ class IBISTrueAgent:
                             getattr(filled_order, "avg_price", 0) or actual_fill_price
                         )
                         filled_qty = float(getattr(filled_order, "filled_size", 0) or 0)
-                        if (
-                            str(getattr(filled_order, "status", "")) != "ACTIVE"
-                            or filled_qty >= (quantity * 0.999)
+                        if str(getattr(filled_order, "status", "")) != "ACTIVE" or filled_qty >= (
+                            quantity * 0.999
                         ):
                             break
 
@@ -5781,12 +6026,15 @@ class IBISTrueAgent:
                                 market_qty = float(getattr(market_order, "filled_size", 0) or 0)
                                 market_fee = float(getattr(market_order, "fee", 0) or 0)
                                 market_price = float(
-                                    getattr(market_order, "avg_price", 0) or actual_fill_price or exit_price
+                                    getattr(market_order, "avg_price", 0)
+                                    or actual_fill_price
+                                    or exit_price
                                 )
                                 total_qty = filled_qty + market_qty
                                 if total_qty > 0:
                                     weighted_price = (
-                                        (filled_qty * actual_fill_price) + (market_qty * market_price)
+                                        (filled_qty * actual_fill_price)
+                                        + (market_qty * market_price)
                                     ) / total_qty
                                     actual_fill_price = weighted_price
                                 filled_qty = total_qty
@@ -6211,7 +6459,9 @@ class IBISTrueAgent:
 
             total = usdt + pos_value
             balance = self.state["daily"]["start_balance"]
-            pnl = float(self.state["daily"].get("realized_pnl", self.state["daily"].get("pnl", 0.0)))
+            pnl = float(
+                self.state["daily"].get("realized_pnl", self.state["daily"].get("pnl", 0.0))
+            )
             return_pct = (pnl / balance * 100) if balance > 0 else 0
             runtime_trades = int(
                 self.state["daily"].get("orders_filled", self.state["daily"].get("trades", 0))
@@ -7160,7 +7410,9 @@ class IBISTrueAgent:
                             if qty <= 0 or buy_px <= 0 or current_px <= 0:
                                 continue
                             pnl_pct = (current_px - buy_px) / buy_px
-                            est_fees = qty * current_px * self._estimate_total_friction_for_symbol(sym)
+                            est_fees = (
+                                qty * current_px * self._estimate_total_friction_for_symbol(sym)
+                            )
                             projected_profit = (qty * (current_px - buy_px)) - est_fees
                             if projected_profit > best_profit:
                                 best_profit = projected_profit
@@ -7270,7 +7522,9 @@ class IBISTrueAgent:
                                     # Use ratio-space PnL for recycle guard checks.
                                     pos_pnl = (current_px - buy_px) / buy_px
                                     est_fees = (
-                                        qty * current_px * self._estimate_total_friction_for_symbol(sym)
+                                        qty
+                                        * current_px
+                                        * self._estimate_total_friction_for_symbol(sym)
                                     )
                                     projected_profit = (qty * (current_px - buy_px)) - est_fees
                                     # 🔱 PARALYSIS BREAKER: If wallet is dead (<$1) and signal is strong (>80), kill the weakest

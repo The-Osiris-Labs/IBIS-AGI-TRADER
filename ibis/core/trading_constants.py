@@ -57,7 +57,7 @@ class ScoreThresholds:
     STRONG_SETUP: int = 85  # Strong setup (High quality)
     GOOD_SETUP: int = 80  # Good opportunity (Quality)
     STANDARD: int = 75  # Standard opportunity (Baseline)
-    MIN_THRESHOLD: int = 70  # Minimum to consider (Conservative)
+    MIN_THRESHOLD: int = 60  # Minimum to consider (Conservative)
     MARKET_PRIMED_HIGH_COUNT: int = 5  # Number of high-scoring symbols for "primed" mode
     MARKET_PRIMED_AVG_SCORE: int = 70  # Lowered to be more aggressive
 
@@ -183,8 +183,8 @@ class RiskConfig:
     BASE_RISK_PER_TRADE: float = 0.02  # 2% base
     MIN_RISK_PER_TRADE: float = 0.005  # 0.5% minimum
     MAX_RISK_PER_TRADE: float = 0.05  # 5% maximum
-    STOP_LOSS_PCT: float = 0.05  # 5% stop loss (aggressive)
-    TAKE_PROFIT_PCT: float = 0.008  # 0.8% take profit (optimized for quick in-and-out)
+    STOP_LOSS_PCT: float = 0.04  # 4% stop loss (balanced)
+    TAKE_PROFIT_PCT: float = 0.015  # 1.5% take profit (optimal for fees)
     MIN_PROFIT_BUFFER: float = 0.0  # No minimum profit requirement
     FEE_BUDGET_DAILY: float = 0.0001  # 0.01% of portfolio for fees
     PORTFOLIO_HEAT: float = 0.95  # 95% (maximum capital utilization)
@@ -211,7 +211,7 @@ class RiskConfig:
 class IntelligenceConfig:
     """Intelligence/threshold configuration"""
 
-    AGI_CONFIDENCE_THRESHOLD: float = 0.70
+    AGI_CONFIDENCE_THRESHOLD: float = 0.60
     MIN_VIABLE_TARGET: float = 0.005  # 0.5% (minimum viable target for quick profits)
     CROSS_EXCHANGE_LEAD_THRESHOLD: float = 0.002  # 0.2%
     INTELLIGENCE_GAP_THRESHOLD: int = 10
