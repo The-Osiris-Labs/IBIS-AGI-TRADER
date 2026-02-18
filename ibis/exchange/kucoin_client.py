@@ -7,6 +7,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import logging
 import time
 import websockets
 import os
@@ -19,6 +20,9 @@ import aiohttp
 import socket
 from aiohttp.resolver import DefaultResolver
 from aiohttp.abc import AbstractResolver
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 try:
     from dotenv import load_dotenv

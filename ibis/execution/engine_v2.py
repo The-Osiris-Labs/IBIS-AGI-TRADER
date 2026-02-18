@@ -23,14 +23,6 @@ from ..exchange.kucoin_client import get_kucoin_client
 from ..cross_exchange_monitor import CrossExchangeMonitor
 from ..market_intelligence import market_intelligence
 
-LOG_PATH = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_v2.log"
-os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.FileHandler(LOG_PATH), logging.StreamHandler()],
-)
 logger = logging.getLogger("ibis_v2")
 
 
@@ -210,7 +202,7 @@ class EnhancedExecutionEngine:
             logger.warning(f"⚠️ Quantity below minimum for {symbol}")
             return False
 
-         for attempt in range(self.max_retry_attempts):
+        for attempt in range(self.max_retry_attempts):
             try:
                 logger.info(
                     f"🚀 BUY {symbol}: ${size_usd:.2f} ({quantity:.8f}) [Attempt {attempt + 1}]"
@@ -264,7 +256,7 @@ class EnhancedExecutionEngine:
                     return False
 
                 logger.info(f"🛑 SELL {symbol}: {rounded_qty:.8f} [Attempt {attempt + 1}]")
-                 order = await self.client.create_order(
+                order = await self.client.create_order(
                     symbol=symbol, side="sell", type="market", price=0, size=rounded_qty
                 )
 

@@ -22,14 +22,6 @@ from ibis.state_sync import StateSynchronizer
 from ibis.core.trading_constants import TRADING
 
 # Configure logging
-LOG_PATH = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_v8.log"
-os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.FileHandler(LOG_PATH), logging.StreamHandler()],
-)
 logger = logging.getLogger("ibis_v8")
 
 
