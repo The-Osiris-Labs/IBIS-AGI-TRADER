@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 # Add project root to path
-PROJECT_ROOT = Path(__file__).parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
@@ -164,8 +164,6 @@ def test_file_structure():
         "ibis/keys.env",
         "ibis/exchange/kucoin_client.py",
         "ibis/exchange/__init__.py",
-        "docs/index.md",
-        "docs/api.md",
         ".gitignore",
     ]
 

@@ -1,3 +1,4 @@
+from ibis.core.logging_config import get_logger
 #!/usr/bin/env python3
 """
 🦅 IBIS BACKTESTING ENGINE
@@ -16,9 +17,8 @@ import statistics
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
-import logging
 
-logger = logging.getLogger("IBIS-BACKTEST")
+logger = get_logger(__name__)
 
 
 class PositionSide:

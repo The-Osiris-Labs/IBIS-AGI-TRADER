@@ -24,7 +24,14 @@ class IbisDB:
 
     @staticmethod
     def _normalize_symbol(symbol: str) -> str:
-        return str(symbol or "").replace("-USDT", "").replace("-USDC", "")
+        """Normalize symbol by stripping known quote currency suffixes (e.g., -USDT, -USDC)"""
+        normalized = str(symbol or "").strip()
+        # Only strip suffixes that are exactly at the end of the string
+        if normalized.endswith("-USDT"):
+            return normalized[:-5]
+        if normalized.endswith("-USDC"):
+            return normalized[:-5]
+        return normalized
 
     @contextmanager
     def get_conn(self):
@@ -65,6 +72,7 @@ class IbisDB:
                 quantity REAL NOT NULL,
                 price REAL NOT NULL,
                 fees REAL DEFAULT 0,
+                fee_rate REAL DEFAULT 0,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 pnl REAL,
                 pnl_pct REAL,
@@ -84,7 +92,20 @@ class IbisDB:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS fee_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT NOT NULL,
+                side TEXT NOT NULL CHECK(side IN ('BUY', 'SELL')),
+                order_id TEXT,
+                fee_amount REAL NOT NULL,
+                fee_rate REAL NOT NULL,
+                trade_value REAL NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol);
+            CREATE INDEX IF NOT EXISTS idx_fee_history_symbol ON fee_history(symbol);
+            CREATE INDEX IF NOT EXISTS idx_fee_history_timestamp ON fee_history(timestamp);
             """)
 
             # Add missing columns for existing databases
@@ -162,6 +183,23 @@ class IbisDB:
                 ),
             )
 
+        # Record entry fee in fee history
+        if entry_fee and entry_fee > 0:
+            trade_value = quantity * price
+            fee_rate = entry_fee / trade_value if trade_value > 0 else 0
+
+            # Validate fee rate is within reasonable bounds (0% to 5%)
+            valid_fee_rate = max(0.0, min(0.05, fee_rate))
+
+            with self.get_conn() as conn:
+                conn.execute(
+                    """
+                INSERT INTO fee_history (symbol, side, order_id, fee_amount, fee_rate, trade_value)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    (symbol, "BUY", limit_sell_order_id, entry_fee, valid_fee_rate, trade_value),
+                )
+
     def set_state(self, key, value):
         with self.get_conn() as conn:
             conn.execute(
@@ -198,7 +236,7 @@ class IbisDB:
 
             default_friction = Config.get_total_friction()
         except:
-            default_friction = 0.0025  # 0.25% default
+            default_friction = 0.00075  # 0.075% default (avg fee + slippage)
 
         symbol = self._normalize_symbol(symbol)
         with self.get_conn() as conn:
@@ -228,20 +266,47 @@ class IbisDB:
                     pnl_pct = (exit_price / entry_price - 1) - friction
 
                 # Log trade with actual fees
+                total_fees = entry_fee + exit_fee
+                trade_value = quantity * exit_price
+                fee_rate = total_fees / trade_value if trade_value > 0 else 0
+
+                # Validate fee rate is within reasonable bounds (0% to 5%)
+                valid_fee_rate = max(0.0, min(0.05, fee_rate))
+                valid_exit_fee_rate = max(
+                    0.0, min(0.05, exit_fee / trade_value if trade_value > 0 else 0)
+                )
+
                 conn.execute(
                     """
-                INSERT INTO trades (symbol, side, order_id, quantity, price, fees, pnl, pnl_pct, reason)
-                VALUES (?, 'SELL', ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO trades (symbol, side, order_id, quantity, price, fees, fee_rate, pnl, pnl_pct, reason)
+                VALUES (?, 'SELL', ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         symbol,
                         order_id,
                         quantity,
                         exit_price,
-                        entry_fee + exit_fee,
+                        total_fees,
+                        valid_fee_rate,
                         net_pnl,
                         pnl_pct,
                         reason,
+                    ),
+                )
+
+                # Record detailed fee information
+                conn.execute(
+                    """
+                INSERT INTO fee_history (symbol, side, order_id, fee_amount, fee_rate, trade_value)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        symbol,
+                        "SELL",
+                        order_id,
+                        exit_fee,
+                        valid_exit_fee_rate,
+                        trade_value,
                     ),
                 )
 
@@ -303,3 +368,458 @@ class IbisDB:
                 "trades_today": trades_count,
                 "budget_exceeded": fees_used > max_daily_fees,
             }
+
+    def get_average_fees_per_symbol(self, days: int = 7) -> Dict[str, Dict[str, float]]:
+        """Get average fees per symbol from historical trades and fee history for specific time period
+
+        Args:
+            days: Number of days to look back for fee history
+
+        Returns:
+            Dictionary of symbol -> {"maker": float, "taker": float, "count": int}
+        """
+        from datetime import datetime, timedelta
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        if days <= 0:
+            raise ValueError("Days must be a positive integer")
+
+        cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+        symbol_fees = {}
+
+        with self.get_conn() as conn:
+            # Check if we have data in fee_history table (preferred source) for last N days
+            cursor = conn.execute(
+                """
+                SELECT symbol, 
+                       AVG(fee_rate) as avg_fee_rate,
+                       COUNT(*) as trade_count
+                FROM fee_history 
+                WHERE fee_rate > 0 AND fee_rate <= 1.0  -- Exclude invalid rates
+                  AND timestamp >= ?
+                GROUP BY symbol
+            """,
+                (cutoff_date,),
+            )
+
+            for row in cursor.fetchall():
+                symbol = row["symbol"]
+                avg_fee_rate = row["avg_fee_rate"]
+                trade_count = row["trade_count"]
+
+                # Clamp to realistic fee rate for major exchanges (0.01% to 0.1%)
+                valid_fee_rate = max(0.0001, min(0.001, avg_fee_rate))
+                if valid_fee_rate != avg_fee_rate:
+                    logger.warning(
+                        f"Invalid fee rate for {symbol}: {avg_fee_rate:.4f}, clamped to {valid_fee_rate:.4f}"
+                    )
+
+                symbol_fees[symbol] = {
+                    "maker": valid_fee_rate,  # Assume symmetric fees for now
+                    "taker": valid_fee_rate,
+                    "count": trade_count,
+                }
+
+            # If no data in fee_history for last N days, check all time
+            if not symbol_fees:
+                cursor = conn.execute("""
+                    SELECT symbol, 
+                           AVG(fee_rate) as avg_fee_rate,
+                           COUNT(*) as trade_count
+                    FROM fee_history 
+                    WHERE fee_rate > 0 AND fee_rate <= 1.0  -- Exclude invalid rates
+                    GROUP BY symbol
+                """)
+
+                for row in cursor.fetchall():
+                    symbol = row["symbol"]
+                    avg_fee_rate = row["avg_fee_rate"]
+                    trade_count = row["trade_count"]
+
+                    valid_fee_rate = max(0.0, min(0.05, avg_fee_rate))
+                    if valid_fee_rate != avg_fee_rate:
+                        logger.warning(
+                            f"Warning: Invalid fee rate for {symbol}: {avg_fee_rate:.4f}, clamped to {valid_fee_rate:.4f}"
+                        )
+
+                    symbol_fees[symbol] = {
+                        "maker": valid_fee_rate,
+                        "taker": valid_fee_rate,
+                        "count": trade_count,
+                    }
+
+            # If still no data, fall back to trades table for last N days
+            if not symbol_fees:
+                cursor = conn.execute(
+                    """
+                    SELECT symbol, 
+                           AVG(fees / (quantity * price)) as avg_fee_rate,
+                           COUNT(*) as trade_count
+                    FROM trades 
+                    WHERE fees > 0 AND quantity > 0 AND price > 0
+                      AND timestamp >= ?
+                    GROUP BY symbol
+                """,
+                    (cutoff_date,),
+                )
+
+                for row in cursor.fetchall():
+                    symbol = row["symbol"]
+                    avg_fee_rate = row["avg_fee_rate"]
+                    trade_count = row["trade_count"]
+
+                    valid_fee_rate = max(0.0, min(0.05, avg_fee_rate))
+                    if valid_fee_rate != avg_fee_rate:
+                        logger.warning(
+                            f"Warning: Invalid fee rate for {symbol}: {avg_fee_rate:.4f}, clamped to {valid_fee_rate:.4f}"
+                        )
+
+                    symbol_fees[symbol] = {
+                        "maker": valid_fee_rate,
+                        "taker": valid_fee_rate,
+                        "count": trade_count,
+                    }
+
+            # Final fallback to all trades
+            if not symbol_fees:
+                cursor = conn.execute("""
+                    SELECT symbol, 
+                           AVG(fees / (quantity * price)) as avg_fee_rate,
+                           COUNT(*) as trade_count
+                    FROM trades 
+                    WHERE fees > 0 AND quantity > 0 AND price > 0
+                    GROUP BY symbol
+                """)
+
+                for row in cursor.fetchall():
+                    symbol = row["symbol"]
+                    avg_fee_rate = row["avg_fee_rate"]
+                    trade_count = row["trade_count"]
+
+                    valid_fee_rate = max(0.0, min(0.05, avg_fee_rate))
+                    if valid_fee_rate != avg_fee_rate:
+                        logger.warning(
+                            f"Warning: Invalid fee rate for {symbol}: {avg_fee_rate:.4f}, clamped to {valid_fee_rate:.4f}"
+                        )
+
+                    symbol_fees[symbol] = {
+                        "maker": valid_fee_rate,
+                        "taker": valid_fee_rate,
+                        "count": trade_count,
+                    }
+
+            return symbol_fees
+
+    def get_average_fee_rate(self, symbol: str = None, days: int = 7) -> Dict[str, float]:
+        """Get average fee rate for a specific symbol or overall for specific time period
+
+        Args:
+            symbol: Optional symbol to get fee rate for
+            days: Number of days to look back for fee history
+
+        Returns:
+            Dictionary with "maker", "taker", and "count" fields
+        """
+        from datetime import datetime, timedelta
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        if days <= 0:
+            raise ValueError("Days must be a positive integer")
+
+        cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+
+        if symbol:
+            symbol = self._normalize_symbol(symbol)
+            with self.get_conn() as conn:
+                # Check fee_history table first for last N days
+                cursor = conn.execute(
+                    """
+                    SELECT AVG(fee_rate) as avg_fee_rate,
+                           COUNT(*) as trade_count
+                    FROM fee_history 
+                    WHERE symbol = ? AND fee_rate > 0 AND fee_rate <= 1.0  -- Exclude invalid rates
+                      AND timestamp >= ?
+                """,
+                    (symbol, cutoff_date),
+                )
+
+                row = cursor.fetchone()
+                if row and row["avg_fee_rate"]:
+                    # Clamp to reasonable fee rate (0% to 5%)
+                    valid_fee_rate = max(0.0, min(0.05, row["avg_fee_rate"]))
+                    if valid_fee_rate != row["avg_fee_rate"]:
+                        logger.warning(
+                            f"Invalid fee rate for {symbol}: {row['avg_fee_rate']:.4f}, clamped to {valid_fee_rate:.4f}"
+                        )
+                    return {
+                        "maker": valid_fee_rate,
+                        "taker": valid_fee_rate,
+                        "count": row["trade_count"],
+                    }
+
+                # Check fee_history all time
+                cursor = conn.execute(
+                    """
+                    SELECT AVG(fee_rate) as avg_fee_rate,
+                           COUNT(*) as trade_count
+                    FROM fee_history 
+                    WHERE symbol = ? AND fee_rate > 0 AND fee_rate <= 1.0
+                """,
+                    (symbol,),
+                )
+
+                row = cursor.fetchone()
+                if row and row["avg_fee_rate"]:
+                    valid_fee_rate = max(0.0, min(0.05, row["avg_fee_rate"]))
+                    if valid_fee_rate != row["avg_fee_rate"]:
+                        logger.warning(
+                            f"Warning: Invalid fee rate for {symbol}: {row['avg_fee_rate']:.4f}, clamped to {valid_fee_rate:.4f}"
+                        )
+                    return {
+                        "maker": valid_fee_rate,
+                        "taker": valid_fee_rate,
+                        "count": row["trade_count"],
+                    }
+
+                # Fall back to trades table for last N days
+                cursor = conn.execute(
+                    """
+                    SELECT AVG(fees / (quantity * price)) as avg_fee_rate,
+                           COUNT(*) as trade_count
+                    FROM trades 
+                    WHERE symbol = ? AND fees > 0 AND quantity > 0 AND price > 0
+                      AND timestamp >= ?
+                """,
+                    (symbol, cutoff_date),
+                )
+
+                row = cursor.fetchone()
+                if row and row["avg_fee_rate"]:
+                    valid_fee_rate = max(0.0, min(0.05, row["avg_fee_rate"]))
+                    if valid_fee_rate != row["avg_fee_rate"]:
+                        logger.warning(
+                            f"Warning: Invalid fee rate for {symbol}: {row['avg_fee_rate']:.4f}, clamped to {valid_fee_rate:.4f}"
+                        )
+                    return {
+                        "maker": valid_fee_rate,
+                        "taker": valid_fee_rate,
+                        "count": row["trade_count"],
+                    }
+
+                # Fall back to all trades
+                cursor = conn.execute(
+                    """
+                    SELECT AVG(fees / (quantity * price)) as avg_fee_rate,
+                           COUNT(*) as trade_count
+                    FROM trades 
+                    WHERE symbol = ? AND fees > 0 AND quantity > 0 AND price > 0
+                """,
+                    (symbol,),
+                )
+
+                row = cursor.fetchone()
+                if row and row["avg_fee_rate"]:
+                    valid_fee_rate = max(0.0, min(0.05, row["avg_fee_rate"]))
+                    if valid_fee_rate != row["avg_fee_rate"]:
+                        logger.warning(
+                            f"Warning: Invalid fee rate for {symbol}: {row['avg_fee_rate']:.4f}, clamped to {valid_fee_rate:.4f}"
+                        )
+                    return {
+                        "maker": valid_fee_rate,
+                        "taker": valid_fee_rate,
+                        "count": row["trade_count"],
+                    }
+
+        # Get overall average if symbol not specified or no data
+        with self.get_conn() as conn:
+            # Check fee_history table first for last N days
+            cursor = conn.execute(
+                """
+                SELECT AVG(fee_rate) as avg_fee_rate,
+                       COUNT(*) as trade_count
+                FROM fee_history 
+                WHERE fee_rate > 0 AND fee_rate <= 1.0  -- Exclude invalid rates
+                  AND timestamp >= ?
+            """,
+                (cutoff_date,),
+            )
+
+            row = cursor.fetchone()
+            if row and row["avg_fee_rate"]:
+                valid_fee_rate = max(0.0, min(0.05, row["avg_fee_rate"]))
+                if valid_fee_rate != row["avg_fee_rate"]:
+                    logger.warning(
+                        f"Invalid overall fee rate: {row['avg_fee_rate']:.4f}, clamped to {valid_fee_rate:.4f}"
+                    )
+                return {
+                    "maker": valid_fee_rate,
+                    "taker": valid_fee_rate,
+                    "count": row["trade_count"],
+                }
+
+            # Check fee_history all time
+            cursor = conn.execute("""
+                SELECT AVG(fee_rate) as avg_fee_rate,
+                       COUNT(*) as trade_count
+                FROM fee_history 
+                WHERE fee_rate > 0 AND fee_rate <= 1.0
+            """)
+
+            row = cursor.fetchone()
+            if row and row["avg_fee_rate"]:
+                valid_fee_rate = max(0.0, min(0.05, row["avg_fee_rate"]))
+                if valid_fee_rate != row["avg_fee_rate"]:
+                    logger.warning(
+                        f"Warning: Invalid overall fee rate: {row['avg_fee_rate']:.4f}, clamped to {valid_fee_rate:.4f}"
+                    )
+                return {
+                    "maker": valid_fee_rate,
+                    "taker": valid_fee_rate,
+                    "count": row["trade_count"],
+                }
+
+            # Fall back to trades table for last N days
+            cursor = conn.execute(
+                """
+                SELECT AVG(fees / (quantity * price)) as avg_fee_rate,
+                       COUNT(*) as trade_count
+                FROM trades 
+                WHERE fees > 0 AND quantity > 0 AND price > 0
+                  AND timestamp >= ?
+            """,
+                (cutoff_date,),
+            )
+
+            row = cursor.fetchone()
+            if row and row["avg_fee_rate"]:
+                valid_fee_rate = max(0.0, min(0.05, row["avg_fee_rate"]))
+                if valid_fee_rate != row["avg_fee_rate"]:
+                    logger.warning(
+                        f"Warning: Invalid overall fee rate: {row['avg_fee_rate']:.4f}, clamped to {valid_fee_rate:.4f}"
+                    )
+                return {
+                    "maker": valid_fee_rate,
+                    "taker": valid_fee_rate,
+                    "count": row["trade_count"],
+                }
+
+            # Fall back to all trades
+            cursor = conn.execute("""
+                SELECT AVG(fees / (quantity * price)) as avg_fee_rate,
+                       COUNT(*) as trade_count
+                FROM trades 
+                WHERE fees > 0 AND quantity > 0 AND price > 0
+            """)
+
+            row = cursor.fetchone()
+            if row and row["avg_fee_rate"]:
+                valid_fee_rate = max(0.0, min(0.05, row["avg_fee_rate"]))
+                if valid_fee_rate != row["avg_fee_rate"]:
+                    logger.warning(
+                        f"Warning: Invalid overall fee rate: {row['avg_fee_rate']:.4f}, clamped to {valid_fee_rate:.4f}"
+                    )
+                return {
+                    "maker": valid_fee_rate,
+                    "taker": valid_fee_rate,
+                    "count": row["trade_count"],
+                }
+
+        # Default fallback rates
+        logger.debug("No fee history found, using default rates")
+        return {
+            "maker": 0.0010,  # 0.10%
+            "taker": 0.0010,  # 0.10%
+            "count": 0,
+        }
+
+    def fee_record_exists(self, order_id: str) -> bool:
+        """Check if a fee record exists for a specific order ID"""
+        with self.get_conn() as conn:
+            row = conn.execute(
+                "SELECT id FROM fee_history WHERE order_id = ?",
+                (order_id,),
+            ).fetchone()
+            return row is not None
+
+    def update_fee_tracking(
+        self, symbol: str, fees: float, trade_value: float, side: str = None, order_id: str = None
+    ):
+        """Record detailed fee information for better analysis
+
+        Args:
+            symbol: Trading symbol
+            fees: Fee amount in quote currency
+            trade_value: Total trade value in quote currency
+            side: Trade side (buy/sell)
+            order_id: Unique order identifier
+
+        Raises:
+            ValueError: If input parameters are invalid
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        # Validate inputs
+        if not symbol or len(symbol.strip()) == 0:
+            raise ValueError("Symbol cannot be empty")
+        if fees < 0:
+            raise ValueError(f"Fees cannot be negative: {fees}")
+        if trade_value <= 0:
+            raise ValueError(f"Trade value must be positive: {trade_value}")
+        if side and side not in ["BUY", "SELL", "UNKNOWN"]:
+            raise ValueError(f"Invalid side: {side} - must be BUY, SELL, or UNKNOWN")
+
+        # Check if record already exists to avoid duplicates
+        if order_id and self.fee_record_exists(order_id):
+            logger.debug(f"Fee record already exists for order: {order_id}")
+            return
+
+        symbol = self._normalize_symbol(symbol)
+        fee_rate = fees / trade_value if trade_value > 0 else 0
+
+        # Validate fee rate is within realistic bounds for major exchanges (0.01% to 0.1%)
+        valid_fee_rate = max(0.0001, min(0.001, fee_rate))
+        if valid_fee_rate != fee_rate:
+            logger.warning(
+                f"Fee rate {fee_rate:.4f} for {symbol} is outside valid range (0.01% to 0.1%), "
+                f"clamped to {valid_fee_rate:.4f}"
+            )
+
+        try:
+            with self.get_conn() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO fee_history (symbol, side, order_id, fee_amount, fee_rate, trade_value)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    (symbol, side or "UNKNOWN", order_id, fees, valid_fee_rate, trade_value),
+                )
+
+            logger.debug(
+                f"Fee record created: symbol={symbol}, side={side}, order_id={order_id}, "
+                f"fee={fees:.4f}, rate={valid_fee_rate:.4f}"
+            )
+
+            # Also update the trades table if order_id is provided
+            if order_id:
+                with self.get_conn() as conn:
+                    conn.execute(
+                        """
+                        UPDATE trades 
+                        SET fees = ?, fee_rate = ?
+                        WHERE order_id = ?
+                    """,
+                        (fees, valid_fee_rate, order_id),
+                    )
+                logger.debug(f"Updated trade fees for order: {order_id}")
+
+        except Exception as e:
+            logger.error(
+                f"Failed to update fee tracking: symbol={symbol}, order_id={order_id} - {e}"
+            )
+            raise

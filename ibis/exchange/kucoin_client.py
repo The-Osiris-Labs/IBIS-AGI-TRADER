@@ -7,7 +7,6 @@ import asyncio
 import hashlib
 import hmac
 import json
-import logging
 import time
 import websockets
 import os
@@ -21,8 +20,9 @@ import socket
 from aiohttp.resolver import DefaultResolver
 from aiohttp.abc import AbstractResolver
 
-# Configure logger
-logger = logging.getLogger(__name__)
+from ibis.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 try:
     from dotenv import load_dotenv
@@ -39,7 +39,7 @@ def load_env():
     if env_path.exists():
         if DOTENV_AVAILABLE:
             load_dotenv(env_path, override=True)
-            print(f"Loaded env from: {env_path}")
+            logger.debug(f"Loaded env from: {env_path}")
         else:
             with open(env_path) as f:
                 for line in f:
@@ -377,7 +377,9 @@ class KuCoinClient:
                 error_str = str(e)
                 # If it's an auth error, don't retry - credentials are wrong
                 if "400005" in error_str or "Invalid" in error_str:
-                    logger.error(f"⚠️ Authentication error - check API credentials: {e}")
+                    logger.error(
+                        f"⚠️ Authentication error - check API credentials: {e}", exc_info=True
+                    )
                     # Return empty data instead of crashing
                     if "orders" in path:
                         return {"items": []}
@@ -421,20 +423,18 @@ class KuCoinClient:
             headers = self._sign(method, endpoint, full_query, body)
 
             # Debug log
-            print(f"DEBUG: Request headers:")
+            logger.debug(f"DEBUG: Request headers:")
             for k, v in headers.items():
-                print(f"  {k}: {v}")
+                logger.debug(f"  {k}: {v}")
 
         url = f"{self.base_url}{path}"
         if query:
             url += f"?{query}"
 
-        async with session.request(
-            method, url, headers=headers, data=body.encode() if body else None
-        ) as resp:
+        async with session.request(method, url, headers=headers, data=body) as resp:
             data = await resp.json()
             if data.get("code") != "200000":
-                print(f"DEBUG: API Response: {data}")
+                logger.debug(f"DEBUG: API Response: {data}")
                 raise Exception(f"KuCoin API Error: {data}")
             return data.get("data", {})
 
@@ -534,7 +534,7 @@ class KuCoinClient:
             return orders
 
         except Exception as e:
-            print(f"Warning: Could not fetch basic orders: {e}")
+            logger.warning(f"Warning: Could not fetch basic orders: {e}")
             return []
 
     async def get_advanced_orders(self, symbol: str = "") -> List[Dict]:
@@ -543,7 +543,7 @@ class KuCoinClient:
             data = await self._request_with_retry("GET", "/api/v1/stop-order")
             return data.get("items", []) if data else []
         except Exception as e:
-            print(f"Warning: Could not fetch advanced orders: {e}")
+            logger.warning(f"Warning: Could not fetch advanced orders: {e}")
             return []
 
     async def get_twap_orders(self, symbol: str = "") -> List[Dict]:

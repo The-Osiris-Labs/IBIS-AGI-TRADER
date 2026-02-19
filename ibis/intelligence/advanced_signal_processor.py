@@ -1,3 +1,4 @@
+from ibis.core.logging_config import get_logger
 """
 IBIS Enhanced Signal Processing & Scoring Module
 =================================================
@@ -9,11 +10,10 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-import logging
 
 from ibis.intelligence.quality_assurance import IntelligenceCleansingPipeline, intelligence_qa
 
-logger = logging.getLogger("IBIS")
+logger = get_logger(__name__)
 
 
 class AdvancedSignalProcessor:

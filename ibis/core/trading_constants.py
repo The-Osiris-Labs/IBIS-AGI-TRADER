@@ -25,16 +25,49 @@ class MarketRegime(Enum):
 
 @dataclass
 class ExchangeConfig:
-    """Exchange parameters"""
+    """Exchange parameters - supports dynamic fee calculation"""
 
     EXCHANGE: str = "kucoin"
     FEE_TIER: str = "Taker"
-    MAKER_FEE: float = 0.0010  # 0.10%
-    TAKER_FEE: float = 0.0010  # 0.10%
+    MAKER_FEE: float = 0.0005  # 0.05% - default if no historical data
+    TAKER_FEE: float = 0.0005  # 0.05% - default if no historical data
     ESTIMATED_SLIPPAGE: float = 0.0005  # 0.05%
 
-    def get_total_friction(self) -> float:
-        return self.TAKER_FEE + self.MAKER_FEE + self.ESTIMATED_SLIPPAGE
+    # Dynamic fee rates per symbol (will be populated from historical data)
+    symbol_fee_rates: Dict[str, Dict[str, float]] = field(default_factory=dict)
+
+    def get_maker_fee(self, symbol: str = None) -> float:
+        """Get maker fee for symbol, using historical data if available"""
+        if symbol and symbol in self.symbol_fee_rates:
+            return self.symbol_fee_rates[symbol].get("maker", self.MAKER_FEE)
+        return self.MAKER_FEE
+
+    def get_taker_fee(self, symbol: str = None) -> float:
+        """Get taker fee for symbol, using historical data if available"""
+        if symbol and symbol in self.symbol_fee_rates:
+            return self.symbol_fee_rates[symbol].get("taker", self.TAKER_FEE)
+        return self.TAKER_FEE
+
+    def get_total_friction(self, symbol: str = None) -> float:
+        """Get total friction (fees + slippage) for symbol, using historical data if available"""
+        # For a single transaction, we only pay either maker or taker fee, not both
+        avg_fee = (self.get_maker_fee(symbol) + self.get_taker_fee(symbol)) / 2
+        return avg_fee + self.ESTIMATED_SLIPPAGE
+
+    def update_symbol_fees(self, symbol: str, maker_fee: float, taker_fee: float):
+        """Update fee rates for a specific symbol"""
+        self.symbol_fee_rates[symbol] = {"maker": maker_fee, "taker": taker_fee}
+
+    def get_average_fees(self) -> Dict[str, float]:
+        """Get average fee rates across all symbols with data"""
+        if not self.symbol_fee_rates:
+            return {"maker": self.MAKER_FEE, "taker": self.TAKER_FEE}
+
+        total_maker = sum(fees["maker"] for fees in self.symbol_fee_rates.values())
+        total_taker = sum(fees["taker"] for fees in self.symbol_fee_rates.values())
+        count = len(self.symbol_fee_rates)
+
+        return {"maker": total_maker / count, "taker": total_taker / count}
 
 
 @dataclass
@@ -57,9 +90,9 @@ class ScoreThresholds:
     STRONG_SETUP: int = 85  # Strong setup (High quality)
     GOOD_SETUP: int = 80  # Good opportunity (Quality)
     STANDARD: int = 75  # Standard opportunity (Baseline)
-    MIN_THRESHOLD: int = 60  # Minimum to consider (Conservative)
+    MIN_THRESHOLD: int = 70  # Minimum to consider (Higher quality focus)
     MARKET_PRIMED_HIGH_COUNT: int = 5  # Number of high-scoring symbols for "primed" mode
-    MARKET_PRIMED_AVG_SCORE: int = 70  # Lowered to be more aggressive
+    MARKET_PRIMED_AVG_SCORE: int = 75  # Higher average score for primed market
 
     def __post_init__(self):
         if not (
@@ -88,14 +121,14 @@ class ScoreThresholds:
 
 @dataclass
 class PositionConfig:
-    """Position-related configuration - AGGRESSIVE CAPITAL UTILIZATION"""
+    """Position-related configuration - MAXIMUM CAPITAL UTILIZATION"""
 
-    MAX_TOTAL_POSITIONS: int = 25  # Max concurrent positions
+    MAX_TOTAL_POSITIONS: int = 25  # Max concurrent positions for full utilization
     MIN_CAPITAL_PER_TRADE: float = 11.0  # $11 minimum per trade
     FINAL_TRADE_MIN_CAPITAL: float = 11.0  # $11 minimum for final trade
     MAX_CAPITAL_PER_TRADE: float = 100.0  # $100 maximum per trade (for higher volume)
     MAX_POSITION_PCT: float = 90.0  # 90% max of portfolio per position
-    BASE_POSITION_PCT: float = 75.0  # 75% base per position (MAXIMUM UTILIZATION!)
+    BASE_POSITION_PCT: float = 75.0  # 75% base per position (maximum utilization)
 
     def __post_init__(self):
         if self.MIN_CAPITAL_PER_TRADE < 11.0:
@@ -122,10 +155,10 @@ class PositionConfig:
 class ScanConfig:
     """Scanning configuration"""
 
-    DEFAULT_SCAN_INTERVAL: int = 5  # Faster scanning for quick opportunities
-    DEFAULT_MAX_POSITIONS: int = 25  # More positions to utilize all capital
+    DEFAULT_SCAN_INTERVAL: int = 5  # Fast scanning for quick opportunities
+    DEFAULT_MAX_POSITIONS: int = 25  # Max positions for full capital utilization
     TIMEFRAME: str = "1min"  # 1-minute timeframe for fast trading
-    LOOKBACK_PERIOD: int = 15  # Shorter lookback for quicker analysis
+    LOOKBACK_PERIOD: int = 20  # Longer lookback for more reliable signals
 
     def __post_init__(self):
         self.SCAN_INTERVALS = {
@@ -180,12 +213,12 @@ class ScanConfig:
 class RiskConfig:
     """Risk management configuration"""
 
-    BASE_RISK_PER_TRADE: float = 0.02  # 2% base
+    BASE_RISK_PER_TRADE: float = 0.015  # 1.5% base (reduced risk)
     MIN_RISK_PER_TRADE: float = 0.005  # 0.5% minimum
-    MAX_RISK_PER_TRADE: float = 0.05  # 5% maximum
-    STOP_LOSS_PCT: float = 0.04  # 4% stop loss (balanced)
-    TAKE_PROFIT_PCT: float = 0.015  # 1.5% take profit (optimal for fees)
-    MIN_PROFIT_BUFFER: float = 0.0  # No minimum profit requirement
+    MAX_RISK_PER_TRADE: float = 0.04  # 4% maximum (reduced from 5%)
+    STOP_LOSS_PCT: float = 0.035  # 3.5% stop loss (tighter)
+    TAKE_PROFIT_PCT: float = 0.02  # 2% take profit (improved risk-reward)
+    MIN_PROFIT_BUFFER: float = 0.005  # 0.5% minimum profit buffer
     FEE_BUDGET_DAILY: float = 0.0001  # 0.01% of portfolio for fees
     PORTFOLIO_HEAT: float = 0.95  # 95% (maximum capital utilization)
     MAX_PORTFOLIO_RISK: float = 0.95  # 95% (maximum portfolio exposure)

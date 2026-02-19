@@ -9,7 +9,6 @@ import asyncio
 import json
 import os
 import fcntl
-import logging
 from datetime import datetime
 from typing import Dict
 
@@ -17,8 +16,8 @@ from ibis.database.db import IbisDB
 from ibis.exchange.kucoin_client import get_kucoin_client
 from ibis.core.trading_constants import TRADING
 
-# Configure logger
-logger = logging.getLogger(__name__)
+from ibis.core.logging_config import get_logger
+logger = get_logger(__name__)
 
 
 class StateSynchronizer:
@@ -88,7 +87,7 @@ class StateSynchronizer:
             return True
 
         except Exception as e:
-            logger.error(f"Position reconciliation error: {e}")
+            logger.error(f"Position reconciliation error: {e}", exc_info=True)
             return False
 
     async def verify_balance(self):
@@ -120,7 +119,7 @@ class StateSynchronizer:
             return True
 
         except Exception as e:
-            logger.error(f"Balance verification error: {e}")
+            logger.error(f"Balance verification error: {e}", exc_info=True)
             return False
 
     async def sync_to_json(self):
@@ -165,7 +164,7 @@ class StateSynchronizer:
                             "unrealized_pnl_pct": pnl_pct,
                         }
                 except Exception as e:
-                    logger.error(f"Error getting price for {symbol}: {e}")
+                    logger.error(f"Error getting price for {symbol}: {e}", exc_info=True)
                     continue
 
             # Get daily stats from trades
@@ -276,7 +275,7 @@ class StateSynchronizer:
                     state["agent_mode"] = "ROTATING"
 
                 # Debug: Print capital awareness before saving
-                print("Debug - Capital awareness before saving:", capital_awareness)
+                logger.debug("Debug - Capital awareness before saving:", capital_awareness)
 
                 tmp_path = f"{self.state_file}.tmp"
                 with open(tmp_path, "w") as f:
@@ -289,19 +288,19 @@ class StateSynchronizer:
             return True
 
         except Exception as e:
-            logger.error(f"State sync error: {e}")
+            logger.error(f"State sync error: {e}", exc_info=True)
             return False
 
     async def run_sync_loop(self, interval: int = 30):
         """Run continuous sync loop."""
         self.running = True
-        print(f"🔄 State synchronizer started (interval: {interval}s)")
+        logger.info(f"🔄 State synchronizer started (interval: {interval}s)")
 
         while self.running:
             try:
                 await self.sync_to_json()
             except Exception as e:
-                print(f"Sync error: {e}")
+                logger.error(f"Sync error: {e}", exc_info=True)
             await asyncio.sleep(interval)
 
     def stop(self):
@@ -314,9 +313,9 @@ async def run_single_sync():
     syncer = StateSynchronizer()
     success = await syncer.sync_to_json()
     if success:
-        print("✅ State synchronized successfully")
+        logger.info("✅ State synchronized successfully")
     else:
-        print("❌ State sync failed")
+        logger.error("❌ State sync failed")
 
 
 if __name__ == "__main__":

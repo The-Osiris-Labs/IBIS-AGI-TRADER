@@ -1,3 +1,5 @@
+from ibis.core.logging_config import get_logger
+
 """
 IBIS Real-Time Intelligence Processing Optimization
 ===================================================
@@ -9,13 +11,12 @@ import concurrent.futures
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-import logging
 import json
 from collections import defaultdict, deque
 
 import numpy as np
 
-logger = logging.getLogger("IBIS")
+logger = get_logger(__name__)
 
 
 class RealTimeProcessor:
@@ -146,7 +147,7 @@ class RealTimeProcessor:
                 await self._update_performance_stats(task, processing_time, success=True)
 
             except Exception as e:
-                logger.error(f"Worker {worker_id} error: {e}")
+                logger.error(f"Worker {worker_id} error: {e}", exc_info=True)
                 await self._update_performance_stats(task, time.time() - start_time, success=False)
 
                 # Add error result
@@ -631,7 +632,7 @@ class PerformanceOptimizer:
             try:
                 await self._optimization_loop()
             except Exception as e:
-                logger.error(f"Optimization loop error: {e}")
+                logger.error(f"Optimization loop error: {e}", exc_info=True)
 
             await asyncio.sleep(self._optimization_interval)
 

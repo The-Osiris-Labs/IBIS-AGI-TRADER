@@ -1,3 +1,5 @@
+from ibis.core.logging_config import get_logger
+
 """
 IBIS Intelligence Monitoring & Debugging System
 ===============================================
@@ -9,13 +11,12 @@ import time
 import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-import logging
 import traceback
 from collections import defaultdict, deque
 
 import numpy as np
 
-logger = logging.getLogger("IBIS")
+logger = get_logger(__name__)
 
 
 class IntelligenceMonitor:
@@ -127,7 +128,7 @@ class IntelligenceMonitor:
 
         self._errors.append(error_entry)
 
-        logger.error(f"{operation_type} error: {error_message}")
+        logger.error(f"{operation_type} error: {error_message}", exc_info=exception is not None)
 
     async def record_warning(
         self, operation_type: str, warning_message: str, metadata: Dict = None

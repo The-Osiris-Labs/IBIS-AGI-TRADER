@@ -12,6 +12,9 @@ import sys
 from datetime import datetime
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
+from ibis.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Try relative imports (package mode), fall back to absolute (standalone mode)
 try:
@@ -81,28 +84,24 @@ class IBIS:
 
     async def initialize(self) -> bool:
         """Initialize IBIS systems."""
-        print(f"Initializing {self.name} v{self.version}...")
+        logger.info(f"Initializing {self.name} v{self.version}...")
         await emit_event(
             "ibis.initialize.start",
             {"name": self.name, "version": self.version},
         )
 
         try:
-            await self.cognition.metacognition.set_cognitive_state(
-                CognitiveState.OBSERVING
-            )
+            await self.cognition.metacognition.set_cognitive_state(CognitiveState.OBSERVING)
 
             stats = await self.memory.get_statistics()
-            print(
+            logger.info(
                 f"Memory loaded: {stats.get('episodic', {}).get('total_trades_stored', 0)} trades"
             )
 
             brain_metrics = self.brain.get_metrics()
-            print(
-                f"Brain ready: {brain_metrics.get('total_requests', 0)} requests processed"
-            )
+            logger.info(f"Brain ready: {brain_metrics.get('total_requests', 0)} requests processed")
 
-            print(f"{self.name} initialized successfully")
+            logger.info(f"{self.name} initialized successfully")
             await emit_event(
                 "ibis.initialize.ok",
                 {"name": self.name, "version": self.version},
@@ -110,7 +109,7 @@ class IBIS:
             return True
 
         except Exception as e:
-            print(f"Initialization failed: {e}")
+            logger.error(f"Initialization failed: {e}", exc_info=True)
             await emit_event(
                 "ibis.initialize.error",
                 {"error": str(e)},
@@ -366,9 +365,7 @@ class IBIS:
 
     async def get_status(self) -> Dict:
         """Get current IBIS status."""
-        uptime = (
-            (datetime.now() - self.start_time).total_seconds() if self.start_time else 0
-        )
+        uptime = (datetime.now() - self.start_time).total_seconds() if self.start_time else 0
 
         return {
             "name": self.name,
@@ -389,7 +386,7 @@ class IBIS:
 
         await self.cognition.metacognition.set_cognitive_state(CognitiveState.OBSERVING)
 
-        print(f"{self.name} v{self.version} started - Sacred hunter awakens")
+        logger.info(f"{self.name} v{self.version} started - Sacred hunter awakens")
         await emit_event(
             "ibis.start",
             {"name": self.name, "version": self.version},
@@ -399,23 +396,23 @@ class IBIS:
         """Stop IBIS."""
         self.running = False
 
-        await self.cognition.metacognition.set_cognitive_state(
-            CognitiveState.REFLECTING
-        )
+        await self.cognition.metacognition.set_cognitive_state(CognitiveState.REFLECTING)
 
         await self.memory.episodic._save()
 
-        print(f"{self.name} stopped - Sacred hunter rests")
+        logger.info(f"{self.name} stopped - Sacred hunter rests")
         await emit_event(
             "ibis.stop",
             {"name": self.name, "version": self.version},
         )
         # Cleanup sessions
         from .market_intelligence import market_intelligence
+
         await market_intelligence.close()
         # Closing kucoin client if accessible
         try:
             from .exchange.kucoin_client import get_kucoin_client
+
             await get_kucoin_client().close()
         except:
             pass
@@ -439,7 +436,7 @@ async def main():
     ibis = IBIS()
 
     if not await ibis.initialize():
-        print("Failed to initialize IBIS")
+        logger.error("Failed to initialize IBIS")
         sys.exit(1)
 
     await ibis.start()

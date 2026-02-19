@@ -5,6 +5,10 @@ Comprehensive test of free_intelligence, market_intelligence, and enhanced integ
 """
 
 import asyncio
+import sys
+
+sys.path.insert(0, "/root/projects/Dont enter unless solicited/AGI Trader/tests/sandbox")
+
 from ibis.free_intelligence import FreeIntelligence
 from ibis_enhanced_integration import IBISEnhancedIntegration
 from ibis_true_agent import IBISTrueAgent

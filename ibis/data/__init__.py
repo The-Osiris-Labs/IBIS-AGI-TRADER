@@ -1,3 +1,5 @@
+from ibis.core.logging_config import get_logger
+
 #!/usr/bin/env python3
 """
 🦅 IBIS AGI TRADING SYSTEM - DATA LAYER
@@ -22,9 +24,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Callable, Set
 from dataclasses import dataclass, field
 from collections import deque
-import logging
 
-logger = logging.getLogger("IBIS-DATA")
+logger = get_logger(__name__)
 
 try:
     import aiohttp
@@ -151,7 +152,7 @@ class KuCoinRESTClient:
             else:
                 return {}
         except Exception as e:
-            logger.error(f"Request failed: {e}")
+            logger.error(f"Request failed: {e}", exc_info=True)
             return {}
 
     async def get_symbols(self) -> List[str]:
@@ -299,7 +300,7 @@ class MarketDataManager:
             self.last_update = datetime.now()
             logger.debug(f"Fetched market data for {len(tickers)} symbols")
         except Exception as e:
-            logger.error(f"Fetch failed: {e}")
+            logger.error(f"Fetch failed: {e}", exc_info=True)
             self._simulate_market_data()
 
     async def get_price(self, symbol: str) -> float:
@@ -358,7 +359,7 @@ class KuCoinWebSocketClient:
             self.running = True
             return True
         except Exception as e:
-            logger.error(f"WebSocket connection failed: {e}")
+            logger.error(f"WebSocket connection failed: {e}", exc_info=True)
             return False
 
     async def subscribe(self, topic: str, callback: Callable):

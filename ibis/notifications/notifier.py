@@ -5,7 +5,6 @@ Telegram and Discord alerts for trades, signals, and system events
 
 import asyncio
 import json
-import logging
 from typing import Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -13,7 +12,8 @@ from enum import Enum
 from abc import ABC, abstractmethod
 import aiohttp
 
-logger = logging.getLogger(__name__)
+from ibis.core.logging_config import get_logger
+logger = get_logger(__name__)
 
 
 class NotificationType(Enum):
@@ -36,9 +36,7 @@ class TradeNotification:
     pnl_percent: float = 0.0
     stop_loss: float = 0.0
     take_profit: float = 0.0
-    timestamp: int = field(
-        default_factory=lambda: int(datetime.now().timestamp() * 1000)
-    )
+    timestamp: int = field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
 
     def to_dict(self) -> Dict:
         return {
@@ -48,9 +46,7 @@ class TradeNotification:
             "size": f"{self.size:.4f}",
             "price": f"{self.price:.2f}",
             "pnl": f"{self.pnl:.2f}" if self.pnl != 0 else "0",
-            "pnl_percent": f"{self.pnl_percent:.2f}%"
-            if self.pnl_percent != 0
-            else "0%",
+            "pnl_percent": f"{self.pnl_percent:.2f}%" if self.pnl_percent != 0 else "0%",
             "stop_loss": f"{self.stop_loss:.2f}" if self.stop_loss else "N/A",
             "take_profit": f"{self.take_profit:.2f}" if self.take_profit else "N/A",
             "timestamp": datetime.fromtimestamp(self.timestamp / 1000).strftime(
@@ -60,13 +56,9 @@ class TradeNotification:
 
     def to_text(self) -> str:
         emoji = "🟢" if self.side.upper() == "BUY" else "🔴"
-        pnl_text = (
-            f" | PnL: {self.pnl:.2f} ({self.pnl_percent:.2f}%)" if self.pnl != 0 else ""
-        )
+        pnl_text = f" | PnL: {self.pnl:.2f} ({self.pnl_percent:.2f}%)" if self.pnl != 0 else ""
         sl_tp = (
-            f" | SL: {self.stop_loss:.2f} | TP: {self.take_profit:.2f}"
-            if self.stop_loss
-            else ""
+            f" | SL: {self.stop_loss:.2f} | TP: {self.take_profit:.2f}" if self.stop_loss else ""
         )
         return f"{emoji} **{self.side.upper()}** {self.symbol}\n📊 Size: {self.size:.4f} @ ${self.price:.2f}{pnl_text}{sl_tp}\n⏰ {datetime.fromtimestamp(self.timestamp / 1000).strftime('%H:%M:%S')}"
 
@@ -78,9 +70,7 @@ class SignalNotification:
     confidence: float
     reason: str
     indicators: Dict = field(default_factory=dict)
-    timestamp: int = field(
-        default_factory=lambda: int(datetime.now().timestamp() * 1000)
-    )
+    timestamp: int = field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
 
     def to_dict(self) -> Dict:
         return {
@@ -103,9 +93,7 @@ class SignalNotification:
             "SELL": "🔴",
             "HOLD": "⚪",
         }.get(self.signal, "⚪")
-        conf_bar = "█" * int(self.confidence * 10) + "░" * (
-            10 - int(self.confidence * 10)
-        )
+        conf_bar = "█" * int(self.confidence * 10) + "░" * (10 - int(self.confidence * 10))
         return f"{emoji} **{self.signal}** on {self.symbol}\n📈 Confidence: `{conf_bar}` {self.confidence:.0%}\n💡 Reason: {self.reason}\n⏰ {datetime.fromtimestamp(self.timestamp / 1000).strftime('%H:%M:%S')}"
 
 
@@ -114,9 +102,7 @@ class AlertNotification:
     name: str
     message: str
     severity: str = "INFO"
-    timestamp: int = field(
-        default_factory=lambda: int(datetime.now().timestamp() * 1000)
-    )
+    timestamp: int = field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
 
     def to_dict(self) -> Dict:
         return {
@@ -160,7 +146,7 @@ class BaseNotifier(ABC):
                 self.message_queue.append({"message": message, "kwargs": kwargs})
             return success
         except Exception as e:
-            logger.error(f"Notification failed: {e}")
+            logger.error(f"Notification failed: {e}", exc_info=True)
             self.message_queue.append({"message": message, "kwargs": kwargs})
             return False
 
@@ -176,9 +162,7 @@ class BaseNotifier(ABC):
     async def process_queue(self):
         while self.message_queue:
             item = self.message_queue.pop(0)
-            success = await self._send_message(
-                item["message"], **item.get("kwargs", {})
-            )
+            success = await self._send_message(item["message"], **item.get("kwargs", {}))
             if not success:
                 break
             await asyncio.sleep(1)
@@ -233,7 +217,7 @@ class TelegramNotifier(BaseNotifier):
             async with session.post(url, json=payload) as resp:
                 return resp.status == 200
         except Exception as e:
-            logger.error(f"Telegram send failed: {e}")
+             logger.error(f"Telegram send failed: {e}", exc_info=True)
             return False
 
     async def test_connection(self) -> bool:
@@ -289,7 +273,7 @@ class DiscordNotifier(BaseNotifier):
             async with session.post(self.webhook_url, json=payload) as resp:
                 return resp.status in [200, 204]
         except Exception as e:
-            logger.error(f"Discord send failed: {e}")
+             logger.error(f"Discord send failed: {e}", exc_info=True)
             return False
 
     async def send_embed(
@@ -325,7 +309,7 @@ class DiscordNotifier(BaseNotifier):
             async with self.session.post(self.webhook_url, json=payload) as resp:
                 return resp.status in [200, 204]
         except Exception as e:
-            logger.error(f"Discord embed failed: {e}")
+             logger.error(f"Discord embed failed: {e}", exc_info=True)
             return False
 
     async def close(self):
@@ -348,9 +332,7 @@ class NotificationManager:
     def setup_telegram(self, bot_token: str, chat_id: str, enabled: bool = True):
         self.telegram = TelegramNotifier(bot_token, chat_id, enabled)
 
-    def setup_discord(
-        self, webhook_url: str, enabled: bool = True, username: str = "IBIS"
-    ):
+    def setup_discord(self, webhook_url: str, enabled: bool = True, username: str = "IBIS"):
         self.discord = DiscordNotifier(webhook_url, enabled, username)
 
     def on_trade(self, callback: Callable[[TradeNotification], None]):
@@ -375,7 +357,7 @@ class NotificationManager:
             try:
                 callback(notification)
             except Exception as e:
-                logger.error(f"Trade callback error: {e}")
+                 logger.error(f"Trade callback error: {e}", exc_info=True)
 
     async def send_signal(self, notification: SignalNotification):
         self.signal_history.append(notification)
@@ -390,7 +372,7 @@ class NotificationManager:
             try:
                 callback(notification)
             except Exception as e:
-                logger.error(f"Signal callback error: {e}")
+                 logger.error(f"Signal callback error: {e}", exc_info=True)
 
     async def send_alert(self, notification: AlertNotification):
         self.alert_history.append(notification)
@@ -405,7 +387,7 @@ class NotificationManager:
             try:
                 callback(notification)
             except Exception as e:
-                logger.error(f"Alert callback error: {e}")
+                 logger.error(f"Alert callback error: {e}", exc_info=True)
 
     async def send_custom(self, message: str):
         if self.telegram:

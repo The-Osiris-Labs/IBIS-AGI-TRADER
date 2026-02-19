@@ -11,7 +11,14 @@ import aiohttp
 import asyncio
 import json
 import time
+import pandas as pd
 from datetime import datetime, timedelta
+
+from ibis.advanced_intelligence import (
+    MarketMovementAnalyzer,
+    SymbolMovementAnalyzer,
+    AdvancedIntelligenceEnhancement,
+)
 
 
 class MarketIntelligence:
@@ -42,6 +49,10 @@ class MarketIntelligence:
         self.cache = {}
         self.cache_timeout = 60  # 60 seconds cache
         self._session = None
+
+        # Advanced intelligence analyzers
+        self.market_movement_analyzer = MarketMovementAnalyzer()
+        self.symbol_movement_analyzer = SymbolMovementAnalyzer()
 
     async def _get_session(self):
         if self._session is None or self._session.closed:
@@ -374,13 +385,20 @@ class MarketIntelligence:
         for symbol, data in intelligence.items():
             symbol_insights = []
 
-            # Trend analysis
-            if data["change_24h"] > 5:
-                symbol_insights.append("📈 Strong uptrend detected")
-            elif data["change_24h"] < -5:
-                symbol_insights.append("📉 Strong downtrend detected")
-            elif -1 < data["change_24h"] < 1:
-                symbol_insights.append("➡️ Sideways consolidation")
+            # Trend analysis using advanced methods
+            sparkline = data.get("sparkline", {})
+            if sparkline and "price" in sparkline:
+                price_data = pd.Series(sparkline["price"])
+                trend_result = self.market_movement_analyzer.detect_trend_strength(price_data)
+
+                if trend_result["strength"] > 70:
+                    symbol_insights.append(
+                        f"📈 {trend_result['direction']} trend (strength: {trend_result['strength']:.0f})"
+                    )
+                elif trend_result["strength"] > 40:
+                    symbol_insights.append(f"↗️ Weak {trend_result['direction']} trend")
+                else:
+                    symbol_insights.append("➡️ Sideways consolidation")
 
             # Volume analysis
             if data["volume_24h"] > data["market_cap"] * 0.1:
@@ -407,6 +425,17 @@ class MarketIntelligence:
                 symbol_insights.append("🎯 Near resistance")
             elif data["price"] < data["low_24h"] * 1.05:
                 symbol_insights.append("🛡️ Near support")
+
+            # Advanced price patterns
+            if (
+                "sparkline" in data
+                and data["sparkline"] is not None
+                and "price" in data["sparkline"]
+            ):
+                price_data = pd.Series(data["sparkline"]["price"])
+                patterns = self.market_movement_analyzer.analyze_price_action_patterns(price_data)
+                for pattern in patterns:
+                    symbol_insights.append(f"🔍 {pattern['name']} pattern")
 
             insights[symbol] = symbol_insights
 

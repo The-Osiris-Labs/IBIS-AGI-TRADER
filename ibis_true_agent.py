@@ -16,6 +16,7 @@ import argparse
 import sys
 import time
 import math
+import logging
 from decimal import Decimal, ROUND_DOWN, ROUND_UP, InvalidOperation
 from datetime import datetime
 from typing import Dict, List, Optional, Any
@@ -24,6 +25,7 @@ from ibis.free_intelligence import FreeIntelligence
 from ibis.cross_exchange_monitor import CrossExchangeMonitor
 from ibis.core.trading_constants import TRADING, SCORE_THRESHOLDS, RISK_CONFIG
 from ibis.data_consolidation import run_full_sync as sync_data_stores
+from ibis.core.logging_config import get_logger, configure_logging
 
 # from ibis_phase1_optimizations import create_phase1_optimizer
 # from ibis_enhanced_integration import IBISEnhancedIntegration
@@ -61,7 +63,7 @@ def round_down_to_increment(qty: float, increment: float) -> float:
         steps = (qty_d / inc_d).to_integral_value(rounding=ROUND_DOWN)
         return float(steps * inc_d)
     except (InvalidOperation, ValueError, TypeError) as e:
-        print(f"⚠️ Round-down error: {e}")
+        logging.warning(f"⚠️ Round-down error: {e}")
         return float(qty)
 
 
@@ -77,7 +79,7 @@ def round_up_to_increment(qty: float, increment: float) -> float:
         steps = (qty_d / inc_d).to_integral_value(rounding=ROUND_UP)
         return float(steps * inc_d)
     except (InvalidOperation, ValueError, TypeError) as e:
-        print(f"⚠️ Round-up error: {e}")
+        logging.warning(f"⚠️ Round-up error: {e}")
         return float(qty)
 
 
@@ -92,7 +94,7 @@ def format_decimal_for_increment(value: float, increment: float) -> float:
         quant = Decimal("1").scaleb(-decimals)
         return float(val_d.quantize(quant))
     except Exception as e:
-        print(f"⚠️ Format error: {e}")
+        logging.warning(f"⚠️ Format error: {e}")
         return float(value)
 
 
@@ -139,7 +141,12 @@ class IBISTrueAgent:
     - Learns from every market cycle
     """
 
+    # Initialize logger as class attribute
+    logger = get_logger(__name__)
+
     def __init__(self):
+        # Configure logging at agent initialization
+        configure_logging()
         self.paper_trading = os.environ.get("PAPER_TRADING", "false").lower() == "true"
         self.debug_mode = os.environ.get("DEBUG", "false").lower() == "true"
         self.verbose_mode = os.environ.get("VERBOSE", "false").lower() == "true"
@@ -213,7 +220,7 @@ class IBISTrueAgent:
 
                     fcntl.flock(lock_f, fcntl.LOCK_UN)
             except Exception as e:
-                self.log_event(f"   ⚠️ DB position sync failed: {e}")
+                self.logger.info(f"   ⚠️ DB position sync failed: {e}")
 
         def _load_memory():
             try:
@@ -480,45 +487,23 @@ class IBISTrueAgent:
             self.state["execution_meta"]["last_sell_reprice"] = {}
 
         self.orderbook_cache = {}
-        self.log_file = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true.log"
         self.sentiment_cache = {}
         self.onchain_cache = {}
 
         self.free_intel = FreeIntelligence()
 
         # 🚀 LIMITLESS OPTIMIZATIONS
-        print("   🚀 Initializing LIMITLESS optimizations...")
+        self.logger.info("   🚀 Initializing LIMITLESS optimizations...")
         # self.phase1 = create_phase1_optimizer(self.config)  # DISABLED - module missing
         # self.enhanced = IBISEnhancedIntegration(self)  # DISABLED - module missing
         self.enhanced_intel = EnhancedIntelStreams()
         self.pnl_tracker = PnLTracker()
         self.agi_brain = get_agi_brain()
-        print("   ⚠️ Phase 1 Optimizer: DISABLED")
-        print("   ⚠️ Enhanced Integration: DISABLED")
-        print("   ✅ Enhanced Intel Streams: ACTIVE")
-        print("   ✅ PnL Tracker: ACTIVE")
-        print("   ✅ AGI Brain: ACTIVE")
-
-    def log_event(self, msg):
-        # Filter DEBUG/VERBOSE messages if not enabled
-        is_debug_msg = "DEBUG" in msg or "VERBOSE" in msg
-        if is_debug_msg and not (self.debug_mode or self.verbose_mode):
-            return
-
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        try:
-            with open(self.log_file, "a") as f:
-                f.write(f"[{timestamp}] {msg}\n")
-        except:
-            pass
-
-        # Colorize certain logs if in terminal
-        if "ORDER" in msg or "SUCCESS" in msg or "SOLD" in msg:
-            print(f"\033[92m{msg}\033[0m")
-        elif "ERROR" in msg or "🛑" in msg:
-            print(f"\033[91m{msg}\033[0m")
-        else:
-            print(msg)
+        self.logger.warning("   ⚠️ Phase 1 Optimizer: DISABLED")
+        self.logger.warning("   ⚠️ Enhanced Integration: DISABLED")
+        self.logger.info("   ✅ Enhanced Intel Streams: ACTIVE")
+        self.logger.info("   ✅ PnL Tracker: ACTIVE")
+        self.logger.info("   ✅ AGI Brain: ACTIVE")
 
     @staticmethod
     def to_full_symbol(currency: str) -> str:
@@ -590,7 +575,7 @@ class IBISTrueAgent:
                 if ticker:
                     pos["buy_price"] = float(ticker.price)
                     entry = pos["buy_price"]
-                    self.log_event(
+                    self.logger.info(
                         f"      🔧 FIXED: {symbol} entry price from $0.00 to ${entry:.6f}"
                     )
 
@@ -630,9 +615,9 @@ class IBISTrueAgent:
 
         if corrections_made:
             self._save_state()
-            self.log_event(f"🛡️ AUTO-CORRECTED {len(corrections_made)} positions to match config:")
+            self.logger.info(f"🛡️ AUTO-CORRECTED {len(corrections_made)} positions to match config:")
             for corr in corrections_made:
-                self.log_event(
+                self.logger.info(
                     f"   {corr['symbol']}: TP {corr['old_tp_pct']:.1f}%→{corr['new_tp_pct']:.1f}%, "
                     f"SL {corr['old_sl_pct']:.1f}%→{corr['new_sl_pct']:.1f}%"
                 )
@@ -674,7 +659,7 @@ class IBISTrueAgent:
         Updates current prices and calculates real-time PnL for all positions.
         Returns detailed portfolio intelligence.
         """
-        self.log_event("   🎯 Updating position awareness...")
+        self.logger.info("   🎯 Updating position awareness...")
 
         portfolio_updates = {
             "total_value": 0.0,
@@ -737,10 +722,10 @@ class IBISTrueAgent:
                                 now = datetime.now()
                             hold_seconds = (now - opened).total_seconds()
                         except (TypeError, ValueError) as e:
-                            self.log_event(f"⚠️ Failed to parse timestamp for {pos['symbol']}: {e}")
+                            self.logger.info(f"⚠️ Failed to parse timestamp for {pos['symbol']}: {e}")
                             hold_seconds = 0
                         except Exception as e:
-                            self.log_event(
+                            self.logger.info(
                                 f"⚠️ Unexpected error parsing timestamp for {pos['symbol']}: {e}"
                             )
                             hold_seconds = 0
@@ -814,7 +799,7 @@ class IBISTrueAgent:
                         )
 
                 except Exception as e:
-                    self.log_event(f"   ⚠️ Failed to update {sym}: {e}")
+                    self.logger.info(f"   ⚠️ Failed to update {sym}: {e}")
                     continue
 
             # Calculate portfolio-wide metrics - include USDT available + holdings
@@ -852,7 +837,7 @@ class IBISTrueAgent:
             # Store in state for quick access
             self.state["portfolio"] = portfolio_updates
 
-            self.log_event(
+            self.logger.info(
                 f"   📊 Portfolio: ${portfolio_updates['total_value']:.2f} | "
                 f"PnL: ${portfolio_updates['total_pnl']:+.2f} ({portfolio_updates['total_pnl_pct']:+.2f}%) | "
                 f"AGI Score: {portfolio_updates['avg_agi_score']:.1f}"
@@ -861,7 +846,7 @@ class IBISTrueAgent:
             return portfolio_updates
 
         except Exception as e:
-            self.log_event(f"   ⚠️ Position awareness update failed: {e}")
+            self.logger.info(f"   ⚠️ Position awareness update failed: {e}")
             return portfolio_updates
 
     async def update_capital_awareness(self) -> Dict:
@@ -912,11 +897,11 @@ class IBISTrueAgent:
             )
             if should_log_orders:
                 if open_orders:
-                    self.log_event(f"🔍 Found {len(open_orders)} open orders")
+                    self.logger.info(f"🔍 Found {len(open_orders)} open orders")
                     for o in open_orders[:3]:
                         if hasattr(o, "symbol") and not isinstance(o, dict):
                             side = getattr(o, "side", "N/A")
-                            self.log_event(
+                            self.logger.info(
                                 f"   Order: {o.symbol} side='{side}' size={o.size} price={o.price}"
                             )
                         else:
@@ -925,11 +910,11 @@ class IBISTrueAgent:
                             size = o.get("size", "0")
                             price = o.get("price", "0")
                             oid = o.get("id", "") or o.get("orderId", "") or "N/A"
-                            self.log_event(
+                            self.logger.info(
                                 f"   Order: {sym} side='{side}' size={size} price={price} id={oid}"
                             )
                 else:
-                    self.log_event("🔍 No open orders found")
+                    self.logger.info("🔍 No open orders found")
                 self._last_open_orders_log_sig = open_sig
                 self._last_open_orders_log_ts = now_ts
 
@@ -1065,7 +1050,7 @@ class IBISTrueAgent:
 
             self.state["capital_awareness"] = capital_aware
 
-            self.log_event(
+            self.logger.info(
                 f"   💰 CAPITAL: ${usdt_total:.2f} total | "
                 f"${usdt_available:.2f} avail | "
                 f"${buy_orders_value:.2f} in buy orders | "
@@ -1076,7 +1061,7 @@ class IBISTrueAgent:
             return capital_aware
 
         except Exception as e:
-            self.log_event(f"   ⚠️ Capital awareness update failed: {e}")
+            self.logger.info(f"   ⚠️ Capital awareness update failed: {e}")
             return self.state.get("capital_awareness", {})
 
     def _extract_order_side_and_funds(self, order) -> tuple[str, float]:
@@ -1107,7 +1092,7 @@ class IBISTrueAgent:
         )
         strategy["available"] = max(0.0, deployable)
         if context:
-            self.log_event(f"   💵 Capital refresh ({context}): ${strategy['available']:.2f}")
+            self.logger.info(f"   💵 Capital refresh ({context}): ${strategy['available']:.2f}")
         return strategy["available"]
 
     def _load_symbol_fee_profile(self, force: bool = False) -> Dict[str, float]:
@@ -1291,11 +1276,11 @@ class IBISTrueAgent:
             out["entry_edge"] = edge
             filtered.append(out)
 
-        self.log_event(
+        self.logger.info(
             f"   🧭 ADMISSION: kept={len(filtered)}/{len(opportunities)} | rejected={rejected} | min_edge={min_edge:.1f}"
         )
         for opp in filtered[:5]:
-            self.log_event(
+            self.logger.info(
                 f"      🧭 EDGE {opp.get('symbol')}: edge={opp.get('entry_edge', 0):.2f}, score={opp.get('score', 0):.1f}"
             )
         return filtered
@@ -1551,7 +1536,7 @@ class IBISTrueAgent:
 
     async def reconcile_holdings(self):
         """🚀 SELF-HEALING: Synchronize local state with actual KuCoin balances"""
-        self.log_event("   🕵️ RECONCILING: Synchronizing state with actual exchange balances...")
+        self.logger.info("   🕵️ RECONCILING: Synchronizing state with actual exchange balances...")
 
         try:
             # 🛡️ DUST & STABLECOIN FILTER
@@ -1585,12 +1570,12 @@ class IBISTrueAgent:
                         DUST_THRESHOLD = 1.0  # $1 minimum
 
                         if position_value < DUST_THRESHOLD:
-                            self.log_event(
+                            self.logger.info(
                                 f"      🧹 SKIP DUST: {currency} = ${position_value:.6f} < $1"
                             )
                             continue
 
-                        self.log_event(
+                        self.logger.info(
                             f"      📥 ADOPTING POSITION: {currency} ({balance:.8f} @ ${price:.6f}) = ${position_value:.2f}"
                         )
                         self.state["positions"][currency] = {
@@ -1612,7 +1597,7 @@ class IBISTrueAgent:
                 else:
                     # Sync quantity if it drifted
                     if abs(self.state["positions"][currency]["quantity"] - balance) > 0.00000001:
-                        self.log_event(
+                        self.logger.info(
                             f"      🔄 SYNCING QUANTITY: {currency} {self.state['positions'][currency]['quantity']:.8f} -> {balance:.8f}"
                         )
                         self.state["positions"][currency]["quantity"] = balance
@@ -1626,7 +1611,7 @@ class IBISTrueAgent:
                             if ticker
                             else self.state["positions"][currency]["current_price"]
                         )
-                        self.log_event(
+                        self.logger.info(
                             f"      🔧 FIXING {currency}: Buy price from $0.00 to ${price:.6f}"
                         )
                         self.state["positions"][currency]["buy_price"] = price
@@ -1665,7 +1650,7 @@ class IBISTrueAgent:
                     dust_positions.append((sym, position_value))
 
             for sym, value in dust_positions:
-                self.log_event(f"      🧹 PURGING DUST: {sym} = ${value:.6f} < $1")
+                self.logger.info(f"      🧹 PURGING DUST: {sym} = ${value:.6f} < $1")
                 del self.state["positions"][sym]
 
             # 3. Remove ghost positions from state (not on exchange anymore)
@@ -1680,7 +1665,7 @@ class IBISTrueAgent:
                     ghosts.append(sym)
 
             for sym in ghosts:
-                self.log_event(f"      👻 PURGING GHOST: {sym} no longer exists on exchange")
+                self.logger.info(f"      👻 PURGING GHOST: {sym} no longer exists on exchange")
                 del self.state["positions"][sym]
 
             self._save_state()
@@ -1688,21 +1673,21 @@ class IBISTrueAgent:
             # 🛡️ VALIDATE: Auto-correct any positions with wrong TP/SL
             corrections = self.validate_and_correct_positions()
             if corrections > 0:
-                self.log_event(
+                self.logger.info(
                     f"   🛡️ AUTO-CORRECTED {corrections} positions to match configuration"
                 )
 
-            self.log_event(
+            self.logger.info(
                 f"   ✅ RECONCILIATION COMPLETE: Tracking {len(self.state['positions'])} positions"
             )
 
         except Exception as e:
-            self.log_event(f"   ⚠️ Reconciliation failed: {e}")
+            self.logger.info(f"   ⚠️ Reconciliation failed: {e}")
 
     async def sync_pnl_from_kucoin(self):
         """Sync PnL from actual KuCoin trade history"""
         try:
-            self.log_event("   💰 Syncing PnL from KuCoin trade history...")
+            self.logger.info("   💰 Syncing PnL from KuCoin trade history...")
 
             # Fetch trades from KuCoin
             await self.pnl_tracker.sync_trades_from_kucoin(self.client)
@@ -1727,7 +1712,7 @@ class IBISTrueAgent:
             daily_stats["synced_all_time_pnl"] = float(all_time.get("pnl", 0.0))
             daily_stats["synced_pnl_updated"] = datetime.now().isoformat()
 
-            self.log_event(
+            self.logger.info(
                 f"   ✅ PnL Synced: Weekly ${weekly['pnl']:.2f} ({weekly['trades']} trades, "
                 f"{weekly['wins']}W/{weekly['losses']}L) | Monthly ${monthly['pnl']:.2f} | "
                 f"Daily runtime preserved (${daily_stats.get('realized_pnl', 0.0):+.2f})"
@@ -1736,7 +1721,7 @@ class IBISTrueAgent:
             return weekly, monthly, all_time
 
         except Exception as e:
-            self.log_event(f"   ⚠️ PnL sync failed: {e}")
+            self.logger.info(f"   ⚠️ PnL sync failed: {e}")
             return None, None, None
 
     async def get_pnl_report(self, period: str = "weekly") -> Dict:
@@ -1752,9 +1737,9 @@ class IBISTrueAgent:
         """Initialize the agent with basic setup"""
         self.log_file = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true.log"
 
-        self.log_event("=" * 70)
-        self.log_event("🦅 IBIS TRUE AUTONOMOUS AGENT v3.1")
-        self.log_event("=" * 70)
+        self.logger.info("=" * 70)
+        self.logger.info("🦅 IBIS TRUE AUTONOMOUS AGENT v3.1")
+        self.logger.info("=" * 70)
 
         # Load state
         self._load_state()
@@ -1775,8 +1760,8 @@ class IBISTrueAgent:
         # ALWAYS use real-time symbol discovery - NO CACHING!
         await self.discover_market()
 
-        self.log_event(f"   📊 Discovered {len(self.symbols_cache)} trading pairs (REAL-TIME)")
-        self.log_event(f"   📋 Loaded rules for {len(self.symbol_rules)} symbols")
+        self.logger.info(f"   📊 Discovered {len(self.symbols_cache)} trading pairs (REAL-TIME)")
+        self.logger.info(f"   📋 Loaded rules for {len(self.symbol_rules)} symbols")
 
         # Get actual balances
         balances = await self.client.get_all_balances()
@@ -1909,11 +1894,11 @@ class IBISTrueAgent:
             fg_class = fg_data.get("value_classification", "N/A")
             fg_source = fg_data.get("source", "unknown")
             fg_score = fg_data.get("score", 50)
-            self.log_event(
+            self.logger.info(
                 f"   📊 Fear & Greed: {fg_value} ({fg_class}) | source: {fg_source} | score: {fg_score}"
             )
         except Exception as e:
-            self.log_event(f"   ⚠️ Fear & Greed fetch failed: {e}")
+            self.logger.info(f"   ⚠️ Fear & Greed fetch failed: {e}")
 
         # Enhanced symbol discovery and rapid screening - ALWAYS use fresh data
         min_liquidity = self.config.get("min_liquidity", 1000)
@@ -2125,8 +2110,8 @@ class IBISTrueAgent:
             except Exception as e:
                 import traceback
 
-                self.log_event(f"      ⚠️ Analysis FAILED for {sym}: {str(e)}")
-                self.log_event(f"      🐛 Traceback: {traceback.format_exc()}")
+                self.logger.info(f"      ⚠️ Analysis FAILED for {sym}: {str(e)}")
+                self.logger.info(f"      🐛 Traceback: {traceback.format_exc()}")
                 return None
 
         # 🚀 TRULY DYNAMIC SYMBOL DISCOVERY SYSTEM
@@ -2135,7 +2120,7 @@ class IBISTrueAgent:
         self.state["cycle_count"] = cycle_count + 1
 
         # Real-time symbol discovery - fetch all current trading pairs from exchange
-        self.log_event(f"   🔍 DISCOVERING TRADING PAIRS...")
+        self.logger.info(f"   🔍 DISCOVERING TRADING PAIRS...")
         fresh_symbols = []
         try:
             exchange_symbols = await self.client.get_symbols()
@@ -2173,11 +2158,11 @@ class IBISTrueAgent:
 
             # Update symbols cache with fresh data
             self.symbols_cache = list(set(fresh_symbols))
-            self.log_event(f"   📊 Found {len(self.symbols_cache)} active trading pairs")
+            self.logger.info(f"   📊 Found {len(self.symbols_cache)} active trading pairs")
 
             # Verify cache has symbols
             if not self.symbols_cache:
-                self.log_event("   ⚠️ No trading pairs found - attempting fallback discovery")
+                self.logger.info("   ⚠️ No trading pairs found - attempting fallback discovery")
                 # Fallback to fetching symbols directly from tickers
                 try:
                     tickers = await self.client.get_tickers()
@@ -2197,15 +2182,15 @@ class IBISTrueAgent:
                             ):
                                 fallback_symbols.append(base_currency)
                     self.symbols_cache = list(set(fallback_symbols))
-                    self.log_event(
+                    self.logger.info(
                         f"   📊 Fallback discovery found {len(self.symbols_cache)} symbols"
                     )
                 except Exception as e:
-                    self.log_event(f"   ⚠️ Fallback discovery failed: {e}")
+                    self.logger.info(f"   ⚠️ Fallback discovery failed: {e}")
                     # If all else fails, use minimal default list
                     self.symbols_cache = ["BTC", "ETH"]
         except Exception as e:
-            self.log_event(f"   ⚠️ Symbol discovery failed: {e}")
+            self.logger.info(f"   ⚠️ Symbol discovery failed: {e}")
 
         # Prioritize holdings
         balances = await self.client.get_all_balances()
@@ -2349,7 +2334,7 @@ class IBISTrueAgent:
         priority_symbols = holdings + top_candidates
         priority_symbols = priority_symbols[: E.PRIORITY_SYMBOLS_LIMIT]
 
-        self.log_event(f"   📋 Priority Symbols: {priority_symbols}")
+        self.logger.info(f"   📋 Priority Symbols: {priority_symbols}")
 
         semaphore = asyncio.Semaphore(E.PARALLEL_ANALYSIS_SIZE)
 
@@ -2361,15 +2346,15 @@ class IBISTrueAgent:
                 async with semaphore:
                     res = await analyze_symbol(sym)
                     if res:
-                        self.log_event(
+                        self.logger.info(
                             f"      ✅ Opportunity: {res['symbol']} (Score: {res['score']:.1f})"
                         )
                     return res
             except Exception as e:
-                self.log_event(f"      ⚠️ Error analyzing {sym}: {e}")
+                self.logger.info(f"      ⚠️ Error analyzing {sym}: {e}")
                 return None
 
-        self.log_event(
+        self.logger.info(
             f"   ⚡ IBIS performing deep analysis on top {len(priority_symbols)} priority symbols..."
         )
 
@@ -2384,7 +2369,7 @@ class IBISTrueAgent:
             if result:
                 market_intel[result["symbol"]] = result
 
-        self.log_event(f"   ✅ Analyzed {len(market_intel)} high-quality opportunities")
+        self.logger.info(f"   ✅ Analyzed {len(market_intel)} high-quality opportunities")
         self.market_intel = market_intel
         return market_intel
 
@@ -2752,7 +2737,7 @@ class IBISTrueAgent:
                 result["composite_score"] = composite_score
                 result["breakdown"] = indicator_scores
 
-                self.log_event(
+                self.logger.info(
                     f"      📊 INDICATORS: RSI:{rsi_val:.1f}/{rsi_signal} MACD:{macd_signal} "
                     f"BB:{result['bollinger']['signal']} MA:{result['ma_trend']['signal']} "
                     f"OBV:{result['obv']['signal']} STOCH:{result['stochastic']['signal']} "
@@ -2760,7 +2745,7 @@ class IBISTrueAgent:
                 )
 
         except Exception as e:
-            self.log_event(f"      ⚠️ Enhanced intel calculation error: {e}")
+            self.logger.info(f"      ⚠️ Enhanced intel calculation error: {e}")
 
         return result
 
@@ -2802,23 +2787,23 @@ class IBISTrueAgent:
                 "score": score,
             }
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse order book for {symbol}: {e}")
+            self.logger.info(f"⚠️ Failed to parse order book for {symbol}: {e}")
             return {"bid_depth": 0, "ask_depth": 0, "imbalance": 0.5, "score": 50}
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error getting order book for {symbol}: {e}")
+            self.logger.info(f"⚠️ Unexpected error getting order book for {symbol}: {e}")
             return {"bid_depth": 0, "ask_depth": 0, "imbalance": 0.5, "score": 50}
 
     async def _get_unified_intel_score(self, symbol):
         """Get unified intelligence score from enhanced intel streams"""
         try:
             result = await self.enhanced_intel.get_unified_intel_score(symbol)
-            self.log_event(
+            self.logger.info(
                 f"   🧠 Unified intel for {symbol}: {result.get('unified_score', 50)} "
                 f"(sources: {result.get('sources_working', 0)}/{result.get('total_sources', 0)})"
             )
             return result
         except Exception as e:
-            self.log_event(f"   ⚠️ Unified intel error for {symbol}: {e}")
+            self.logger.info(f"   ⚠️ Unified intel error for {symbol}: {e}")
             return {"unified_score": 50, "sources_working": 0, "total_sources": 6}
 
     async def _get_sentiment_score(self, symbol):
@@ -2833,9 +2818,9 @@ class IBISTrueAgent:
                     "timestamp": datetime.now(),
                 }
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             pass
 
         try:
@@ -2850,9 +2835,9 @@ class IBISTrueAgent:
                 "timestamp": datetime.now(),
             }
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             return {
                 "score": 50,
                 "sources": {},
@@ -2865,9 +2850,9 @@ class IBISTrueAgent:
         try:
             return await self.free_intel.get_twitter_sentiment(symbol)
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             return None
 
     async def _get_reddit_sentiment(self, symbol):
@@ -2875,9 +2860,9 @@ class IBISTrueAgent:
         try:
             return await self.free_intel.get_reddit_sentiment(symbol)
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             return None
 
     async def _get_news_sentiment(self, symbol):
@@ -2885,25 +2870,25 @@ class IBISTrueAgent:
         try:
             result = await self.enhanced_intel.get_news_sentiment(symbol)
             if result and result.get("score", 50) != 50 or result.get("error"):
-                self.log_event(
+                self.logger.info(
                     f"   📰 Enhanced news sentiment for {symbol}: {result.get('score', 50)}"
                 )
                 return result
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             pass
 
         try:
             result = await self.free_intel.get_news_sentiment(symbol)
             if result is None:
-                self.log_event(f"   ⚠️ News sentiment: No data for {symbol}")
+                self.logger.info(f"   ⚠️ News sentiment: No data for {symbol}")
             elif result.get("score", 50) == 50 and "error" in result:
-                self.log_event(f"   ⚠️ News sentiment failed: {result.get('error', 'unknown')}")
+                self.logger.info(f"   ⚠️ News sentiment failed: {result.get('error', 'unknown')}")
             return result
         except Exception as e:
-            self.log_event(f"   ⚠️ News sentiment error: {e}")
+            self.logger.info(f"   ⚠️ News sentiment error: {e}")
             return None
 
     async def _get_onchain_metrics(self, symbol):
@@ -2911,7 +2896,7 @@ class IBISTrueAgent:
         try:
             enhanced_onchain = await self.enhanced_intel.get_onchain_metrics(symbol)
             if enhanced_onchain and enhanced_onchain.get("data_available"):
-                self.log_event(
+                self.logger.info(
                     f"   ⛓️ Enhanced on-chain for {symbol}: {enhanced_onchain.get('score', 50)} "
                     f"(whale: {enhanced_onchain.get('whale_activity', 'unknown')})"
                 )
@@ -2925,9 +2910,9 @@ class IBISTrueAgent:
                     "timestamp": datetime.now(),
                 }
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             pass
 
         try:
@@ -2950,7 +2935,7 @@ class IBISTrueAgent:
                 else:
                     sources_status.append(f"{name}:OFF")
 
-            self.log_event(f"   📊 On-chain sources: {', '.join(sources_status)}")
+            self.logger.info(f"   📊 On-chain sources: {', '.join(sources_status)}")
 
             components = [
                 ("onchain", onchain.get("score", 50), onchain.get("confidence", 50)),
@@ -2985,7 +2970,7 @@ class IBISTrueAgent:
                 "timestamp": datetime.now(),
             }
         except Exception as e:
-            self.log_event(f"   ⚠️ On-chain metrics error: {e}")
+            self.logger.info(f"   ⚠️ On-chain metrics error: {e}")
             return {
                 "score": 50,
                 "whale_score": 50,
@@ -3001,9 +2986,9 @@ class IBISTrueAgent:
         try:
             return await self.free_intel.get_exchange_flow(symbol)
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             return None
 
     async def _get_large_transactions(self, symbol):
@@ -3011,9 +2996,9 @@ class IBISTrueAgent:
         try:
             return await self.free_intel.get_large_transactions(symbol)
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             return None
 
     async def _get_holder_metrics(self, symbol):
@@ -3021,9 +3006,9 @@ class IBISTrueAgent:
         try:
             return await self.free_intel.get_holder_metrics(symbol)
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             return None
 
     async def _calculate_atr(self, symbol, period=14):
@@ -3050,9 +3035,9 @@ class IBISTrueAgent:
 
             return {"atr": atr, "atr_percent": atr_percent}
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             return {"atr": 0, "atr_percent": 0.02}
 
     def _calculate_dynamic_tp_sl(self, price, atr_percent, regime, confidence_score):
@@ -3289,7 +3274,7 @@ class IBISTrueAgent:
             f"Ti:{BREAKDOWN.get('timing', 0):+d} Re:{BREAKDOWN.get('regime', 0):+d}"
         )
 
-        self.log_event(f"      📊 SCORE: {sym} | base: {score:.1f} | breakdown: {breakdown_str}")
+        self.logger.info(f"      📊 SCORE: {sym} | base: {score:.1f} | breakdown: {breakdown_str}")
 
         return final_score, breakdown_str
 
@@ -3442,14 +3427,14 @@ class IBISTrueAgent:
         # 🕯️ Log candle analysis for visibility
         momentum_1h = analysis.get("momentum_1h", 0)
         if analysis["candle_patterns"]:
-            self.log_event(
+            self.logger.info(
                 f"      🕯️ CANDLES: {analysis['price_action']} | patterns: {analysis['candle_patterns']} | "
                 f"M5:{analysis['momentum_5m']:+.3f}% M15:{analysis['momentum_15m']:+.3f}% "
                 f"M1h(raw):{analysis['momentum_1h_raw']:+.3f}% Mx:{momentum_1h:+.3f}% "
                 f"Vmom:{analysis['volume_momentum']:+.1f}% C:{analysis['momentum_confidence']:.0f}% | vol_1m: {analysis['volatility_1m']:.4f}"
             )
         else:
-            self.log_event(
+            self.logger.info(
                 f"      🕯️ CANDLES: {analysis['price_action']} | "
                 f"M5:{analysis['momentum_5m']:+.3f}% M15:{analysis['momentum_15m']:+.3f}% "
                 f"M1h(raw):{analysis['momentum_1h_raw']:+.3f}% Mx:{momentum_1h:+.3f}% "
@@ -3839,8 +3824,8 @@ class IBISTrueAgent:
 
         if perfect_conditions:
             regime = "PERFECT"
-            self.log_event(f"   🌟 PERFECT STORM DETECTED! Maximum aggression mode activated!")
-            self.log_event(
+            self.logger.info(f"   🌟 PERFECT STORM DETECTED! Maximum aggression mode activated!")
+            self.logger.info(
                 f"      Momentum: {momentum:.2f} | Consistency: {trend_consistency:.0%} | >5% Winners: {very_high_score_count}/{len(changes_24h)}"
             )
         # Strong trending conditions
@@ -3865,11 +3850,11 @@ class IBISTrueAgent:
         # 🧠 AGI Brain Override for critical situations
         agi_regime = None
         if agi_regime in ["CRASHING", "PUMPING", "REVERSAL"]:
-            self.log_event(f"   🧠 AGI Override: {agi_regime} detected")
+            self.logger.info(f"   🧠 AGI Override: {agi_regime} detected")
             regime = agi_regime
 
         # 📊 Log regime detection details
-        self.log_event(
+        self.logger.info(
             f"   📊 REGIME: {regime} | momentum: {momentum:.2f} | vol: {avg_vol:.4f} | "
             f"trend: {avg_trend:.1f} | consistency: {trend_consistency:.2f} | +: {positive_count} -: {negative_count}"
         )
@@ -3931,7 +3916,7 @@ class IBISTrueAgent:
 
             # DISABLED: Market intelligence issues - let IBIS trade based on actual opportunities
             # if avg_market_score < 40 and high_quality_count < 3:
-            #     self.log_event(
+            #     self.logger.info(
             #         f"      🛑 TRASH MARKET DETECTED: Avg score {avg_market_score:.1f}, pausing trades"
             #     )
             #     mode = "OBSERVING"
@@ -4006,13 +3991,13 @@ class IBISTrueAgent:
                             continue
 
                 missing += 1
-                self.log_event(f"   ⚠️ No valid price for {sym}")
+                self.logger.info(f"   ⚠️ No valid price for {sym}")
 
-            self.log_event(f"   📊 Price validation: Fixed {fixed} | Missing {missing}")
+            self.logger.info(f"   📊 Price validation: Fixed {fixed} | Missing {missing}")
             return True
 
         except Exception as e:
-            self.log_event(f"   ⚠️ Price validation failed: {e}")
+            self.logger.info(f"   ⚠️ Price validation failed: {e}")
             return False
 
     async def execute_strategy(self, regime, mode):
@@ -4041,9 +4026,9 @@ class IBISTrueAgent:
                         if ticker and ticker.price:
                             price = float(ticker.price)
                     except (TypeError, ValueError) as e:
-                        self.log_event(f"⚠️ Failed to parse price for {currency}: {e}")
+                        self.logger.info(f"⚠️ Failed to parse price for {currency}: {e}")
                     except Exception as e:
-                        self.log_event(f"⚠️ Unexpected error getting price for {currency}: {e}")
+                        self.logger.info(f"⚠️ Unexpected error getting price for {currency}: {e}")
 
                 if price > 0:
                     value = balance * price
@@ -4144,7 +4129,7 @@ class IBISTrueAgent:
         try:
             from ibis.intelligence.market_intel import AdvancedRiskManager
         except ImportError:
-            self.log_event("   ⚠️ AdvancedRiskManager not available, using basic sizing")
+            self.logger.info("   ⚠️ AdvancedRiskManager not available, using basic sizing")
             return self._calculate_basic_position_size(opportunity_score, strategy, volatility)
 
         available_for_trade = strategy["available"]
@@ -4183,7 +4168,7 @@ class IBISTrueAgent:
             entry_price = market_intel.get("price", 0)
 
         if entry_price <= 0:
-            self.log_event("   ⚠️ No valid entry price, using basic sizing")
+            self.logger.info("   ⚠️ No valid entry price, using basic sizing")
             return self._calculate_basic_position_size(opportunity_score, strategy, volatility)
 
         stop_loss = entry_price * (1 - sl_pct)
@@ -4218,7 +4203,7 @@ class IBISTrueAgent:
         # Ensure position doesn't exceed available capital
         position_size = min(position_size, available_for_trade)
 
-        self.log_event(
+        self.logger.info(
             f"      📊 Enhanced Position sizing: ${position_size:.2f} | "
             f"Score: {opportunity_score:.1f} | Avail: ${available_for_trade:.2f}"
         )
@@ -4315,9 +4300,9 @@ class IBISTrueAgent:
                         if ticker and ticker.price:
                             price = float(ticker.price)
                     except (TypeError, ValueError) as e:
-                        self.log_event(f"⚠️ Failed to parse price for {currency}: {e}")
+                        self.logger.info(f"⚠️ Failed to parse price for {currency}: {e}")
                     except Exception as e:
-                        self.log_event(f"⚠️ Unexpected error getting price for {currency}: {e}")
+                        self.logger.info(f"⚠️ Unexpected error getting price for {currency}: {e}")
 
                 if price > 0:
                     total_assets += balance * price
@@ -4348,9 +4333,9 @@ class IBISTrueAgent:
             fg_data = await self.free_intel.get_fear_greed_index()
             fg_value = fg_data.get("value", 50) if fg_data else 50
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             fg_value = 50
 
         opportunities = []
@@ -4513,17 +4498,17 @@ class IBISTrueAgent:
 
                 # Get AGI brain analysis
                 agi_signal = await self.agi_brain.comprehensive_analysis(context)
-                self.log_event(
+                self.logger.info(
                     f"      🧠 AGI Analysis: {intel['symbol']} - Action: {agi_signal.action}, Confidence: {agi_signal.confidence * 100:.1f}%, Risk: {agi_signal.risk_reward:.2f}"
                 )
-                self.log_event(
+                self.logger.info(
                     f"      🧠 Confluences: {len(agi_signal.confluences)} factors, Model Consensus: {len(agi_signal.model_consensus)} models"
                 )
             except Exception as e:
-                self.log_event(f"      ⚠️ AGI analysis failed: {e}")
+                self.logger.info(f"      ⚠️ AGI analysis failed: {e}")
                 import traceback
 
-                self.log_event(f"      ⚠️ Traceback: {traceback.format_exc()}")
+                self.logger.info(f"      ⚠️ Traceback: {traceback.format_exc()}")
 
             # Cross-Exchange Price Leading
             lead_signal = await self.cross_exchange.get_price_lead_signal(
@@ -4534,16 +4519,16 @@ class IBISTrueAgent:
             if lead_signal["has_lead"]:
                 if lead_signal["direction"] == "binance_leading":
                     score += lead_signal["boost"]
-                    self.log_event(
+                    self.logger.info(
                         f"      🔥 X-LEAD: Binance +{lead_signal['lead_pct']:.2f}% ahead, boost +{lead_signal['boost']}"
                     )
                 elif lead_signal["direction"] == "kucoin_leading":
                     score += lead_signal["boost"]  # Negative boost
-                    self.log_event(
+                    self.logger.info(
                         f"      ⚠️ X-LAG: KuCoin +{abs(lead_signal['lead_pct']):.2f}% ahead, adjust {lead_signal['boost']}"
                     )
             else:
-                self.log_event(f"      📊 X-LEAD: {intel['symbol']} neutral (no lead detected)")
+                self.logger.info(f"      📊 X-LEAD: {intel['symbol']} neutral (no lead detected)")
 
             # 🧠 Log AGI signal
             if agi_signal:
@@ -4559,7 +4544,7 @@ class IBISTrueAgent:
                 else:
                     agi_action = "HOLD"
                 agi_reason = agi_signal_dict.get("reasoning", "No reasoning")
-                self.log_event(
+                self.logger.info(
                     f"      🧠 AGI: {intel['symbol']} | score: {agi_score:.1f} | action: {agi_action} | {agi_reason[:30]}"
                 )
 
@@ -4668,12 +4653,12 @@ class IBISTrueAgent:
         price = opportunity["price"]
         score = opportunity["score"]
 
-        self.log_event(f"      🎯 Executing with Intelligence Score: {score:.1f}")
+        self.logger.info(f"      🎯 Executing with Intelligence Score: {score:.1f}")
 
         # 🛡️ DEDUPLICATION: Check if we already have an open order for this symbol
         buy_orders = self.state.get("capital_awareness", {}).get("buy_orders", {})
         if symbol in buy_orders:
-            self.log_event(f"      ⚠️ DEDUPLICATION: {symbol} already has open order - skipping")
+            self.logger.info(f"      ⚠️ DEDUPLICATION: {symbol} already has open order - skipping")
             return None
 
         # Use dynamic AGI-powered position sizing
@@ -4699,15 +4684,15 @@ class IBISTrueAgent:
                     self._mark_entry_reject_cooldown(
                         symbol, cooldown_seconds, reason="spread_too_wide"
                     )
-                    self.log_event(
+                    self.logger.info(
                         f"      🛑 SPREAD TOO WIDE: {symbol} ({spread * 100:.2f}%) - skipping "
                         f"(cooldown {cooldown_seconds}s)"
                     )
                     return None
         except (TypeError, ValueError) as e:
-            self.log_event(f"⚠️ Failed to parse data: {e}")
+            self.logger.info(f"⚠️ Failed to parse data: {e}")
         except Exception as e:
-            self.log_event(f"⚠️ Unexpected error: {e}")
+            self.logger.info(f"⚠️ Unexpected error: {e}")
             pass
 
         rules = self.symbol_rules.get(symbol, {})
@@ -4725,7 +4710,7 @@ class IBISTrueAgent:
         )
         if is_final_trade:
             min_position_value = TRADING.POSITION.FINAL_TRADE_MIN_CAPITAL
-            self.log_event(f"      💰 FINAL TRADE: Using ${min_position_value:.1f} minimum")
+            self.logger.info(f"      💰 FINAL TRADE: Using ${min_position_value:.1f} minimum")
 
         # Start with available capital - 99.5% for taker fees
         desired_position = min(position_value, available_for_trade * 0.995)
@@ -4764,7 +4749,7 @@ class IBISTrueAgent:
                 sl_pct = stop_data["stop_distance_pct"] / 100
                 tp_pct = stop_data["tp_distance_pct"] / 100
 
-                self.log_event(
+                self.logger.info(
                     f"      🎯 SMART STOPS: SL {stop_data['stop_distance_pct']:.2f}% ({stop_data['volatility_mode']}) | "
                     f"TP {stop_data['tp_distance_pct']:.2f}%"
                 )
@@ -4787,7 +4772,7 @@ class IBISTrueAgent:
                 tp = price * (1 + tp_pct)
 
         except Exception as e:
-            self.log_event(f"      ⚠️ Smart stops calculation failed: {e}")
+            self.logger.info(f"      ⚠️ Smart stops calculation failed: {e}")
             # Fallback: use dynamic TP from score
             tp_pct = self._get_dynamic_tp_pct(score)
             sl_pct = TRADING.RISK.STOP_LOSS_PCT
@@ -4806,7 +4791,7 @@ class IBISTrueAgent:
 
         sl_str = f"${sl:.8f} (-{sl_pct * 100:.1f}%)"
 
-        self.log_event(f"      📊 Position sizing: ${position_value:.2f} | Qty: {quantity:.8f}")
+        self.logger.info(f"      📊 Position sizing: ${position_value:.2f} | Qty: {quantity:.8f}")
 
         print(f"\n   ╔{'═' * 68}╗")
         print(f"   ║ {'🚀 EXECUTING TRADE':^66} ║")
@@ -4886,7 +4871,7 @@ class IBISTrueAgent:
                 market_max_spread = float(self.config.get("market_entry_max_spread", 0.0035))
                 if score < market_score_min:
                     use_market = False
-                    self.log_event(
+                    self.logger.info(
                         f"      🧩 MAKER-FIRST: {symbol} score {score:.1f} < {market_score_min:.0f}, using limit"
                     )
                 else:
@@ -4897,7 +4882,7 @@ class IBISTrueAgent:
                         spread_now = ((ask - bid) / bid) if bid > 0 and ask > 0 else 0
                         if spread_now > market_max_spread:
                             use_market = False
-                            self.log_event(
+                            self.logger.info(
                                 f"      🧩 MAKER-FIRST: {symbol} spread {spread_now * 100:.2f}% > {market_max_spread * 100:.2f}%, using limit"
                             )
                     except Exception:
@@ -4907,7 +4892,7 @@ class IBISTrueAgent:
                 # MARKET order for instant entry in optimal conditions
                 order_type = "market"
                 suggested_price = price
-                self.log_event(
+                self.logger.info(
                     f"      🚀 EXECUTING MARKET buy for {symbol} @ ${price:.6f} (PERFECT CONDITIONS - MAX SPEED)"
                 )
             else:
@@ -4923,7 +4908,7 @@ class IBISTrueAgent:
                     suggested_price = max(suggested_price, price_increment)
                     suggested_price = format_decimal_for_increment(suggested_price, price_increment)
 
-                self.log_event(
+                self.logger.info(
                     f"      🚀 EXECUTING LIMIT buy for {symbol} @ ${suggested_price:.8f} (${price:.6f} - 0.2%)..."
                 )
 
@@ -4936,20 +4921,20 @@ class IBISTrueAgent:
                     quantity = max(quantity, base_min_size)
                     quantity = format_decimal_for_increment(quantity, base_increment)
                     actual_limit_value = quantity * suggested_price
-                    self.log_event(
+                    self.logger.info(
                         f"      🔧 ADJUSTED QTY FOR MIN NOTIONAL: qty={quantity:.8f}, value=${actual_limit_value:.2f}"
                     )
 
                 max_affordable = available_for_trade * 0.995
                 if actual_limit_value > max_affordable + 1e-9:
-                    self.log_event(
+                    self.logger.info(
                         f"      🛑 LIMIT NOTIONAL EXCEEDS AVAILABLE: ${actual_limit_value:.2f} > ${max_affordable:.2f}"
                     )
                     return None
 
                 # Re-check against minimum using the ACTUAL submitted limit price.
                 if actual_limit_value < min_trade_value - 0.01:
-                    self.log_event(
+                    self.logger.info(
                         f"      🛑 LIMIT VALUE TOO LOW: ${actual_limit_value:.2f} < ${min_trade_value:.2f} minimum for {symbol}"
                     )
                     return None
@@ -4974,10 +4959,10 @@ class IBISTrueAgent:
                 )
 
             if not resp or not getattr(resp, "order_id", None):
-                self.log_event(f"      ❌ ORDER FAILED for {symbol}: No order ID returned")
+                self.logger.info(f"      ❌ ORDER FAILED for {symbol}: No order ID returned")
                 return None
 
-            self.log_event(
+            self.logger.info(
                 f"      ✅ ORDER SUCCESS for {symbol} | OrderID: {getattr(resp, 'order_id', 'unknown')}"
             )
 
@@ -5188,7 +5173,7 @@ class IBISTrueAgent:
                     # Fallback to position's current_price or buy_price
                     current = pos.get("current_price") or pos.get("buy_price", 0)
                     if current <= 0:
-                        self.log_event(f"      ⚠️ No price data for {sym}, skipping")
+                        self.logger.info(f"      ⚠️ No price data for {sym}, skipping")
                         continue
 
                 pos["current_price"] = current
@@ -5202,7 +5187,7 @@ class IBISTrueAgent:
 
                 # 🧹 DUST CHECK: Remove dust positions (value < $1)
                 if position_value < DUST_THRESHOLD:
-                    self.log_event(
+                    self.logger.info(
                         f"      🧹 DUST REMOVE: {sym} = ${position_value:.6f} < $1, removing from tracking"
                     )
                     del self.state["positions"][sym]
@@ -5235,7 +5220,7 @@ class IBISTrueAgent:
                 sl_hit = current <= sl
 
                 if pnl_pct > 0.01:
-                    self.log_event(
+                    self.logger.info(
                         f"      🔍 {sym}: ${current:.4f} | Buy: ${buy_price:.4f} | "
                         f"PnL: {pnl_pct * 100:.2f}% | TP: ${tp:.4f} ({tp_hit}) | SL: ${sl:.4f} ({sl_hit})"
                     )
@@ -5262,7 +5247,7 @@ class IBISTrueAgent:
         for sym, reason, exit_price, pnl_pct, actual_profit in to_close:
             pos = self.state["positions"].get(sym)
             if not pos:
-                self.log_event(f"      👻 SKIP EXIT: {sym} position already closed/gone")
+                self.logger.info(f"      👻 SKIP EXIT: {sym} position already closed/gone")
                 continue
 
             hold_hours = 0
@@ -5286,7 +5271,7 @@ class IBISTrueAgent:
             else:
                 exit_detail = f"Exit ({pnl_pct * 100:.2f}%)"
 
-            self.log_event(
+            self.logger.info(
                 f"      🔴 EXIT TRIGGER: {sym} | {reason} | {exit_detail} | Held: {hold_hours:.1f}h"
             )
 
@@ -5469,7 +5454,7 @@ class IBISTrueAgent:
                                 if partial_hard_stale
                                 else f"soft={soft_stale} hard={hard_stale} (soft>={stale_buy_seconds}s hard>={stale_buy_hard_seconds}s)"
                             )
-                            self.log_event(
+                            self.logger.info(
                                 f"   [STALE BUY CANCELED] {symbol}: age={age_seconds:.0f}s | "
                                 f"{log_tail} | avail=${available_usdt:.2f} | pending={len(buy_orders)} | pressure={under_capital_pressure}"
                             )
@@ -5496,7 +5481,7 @@ class IBISTrueAgent:
                             self._save_memory()
                             continue
                         except Exception as cancel_e:
-                            self.log_event(f"   [STALE BUY CANCEL WARN] {symbol}: {cancel_e}")
+                            self.logger.info(f"   [STALE BUY CANCEL WARN] {symbol}: {cancel_e}")
                 else:
                     # Order inactive with zero reported fills. Check live balance to avoid missing fills.
                     if live_balances_cache is None:
@@ -5528,7 +5513,7 @@ class IBISTrueAgent:
                     exch_value = exch_total_qty * symbol_price if symbol_price > 0 else 0.0
 
                     if exch_total_qty > 0 and exch_value >= 1.0:
-                        self.log_event(
+                        self.logger.info(
                             f"   [PENDING RECOVERED] {symbol}: inactive order but live balance={exch_total_qty:.8f}, reconstructing position"
                         )
                         if symbol in self.state["positions"]:
@@ -5561,7 +5546,7 @@ class IBISTrueAgent:
 
                     # No live balance => clear stale marker.
                     if symbol in buy_orders:
-                        self.log_event(
+                        self.logger.info(
                             f"   [PENDING CLEARED] {symbol}: inactive with zero fill (avail={exch_available_qty:.8f}, total={exch_total_qty:.8f}), removing stale pending order"
                         )
                         del buy_orders[symbol]
@@ -5571,14 +5556,14 @@ class IBISTrueAgent:
                 error_str = str(e)
                 if "The order does not exist" in error_str or "order.*not.*exist" in error_str:
                     # Order no longer exists on exchange, remove from pending
-                    self.log_event(
+                    self.logger.info(
                         f"   [ORDER EXPIRED] {symbol}: Order no longer exists on exchange"
                     )
                     if symbol in buy_orders:
                         del buy_orders[symbol]
                         self._save_state()
                 else:
-                    self.log_event(f"   [PENDING CHECK] {symbol}: {e}")
+                    self.logger.info(f"   [PENDING CHECK] {symbol}: {e}")
                 pass
 
         if filled_count > 0:
@@ -5652,7 +5637,7 @@ class IBISTrueAgent:
                 try:
                     orderbook = await self.client.get_orderbook(full_symbol, limit=20)
                 except Exception as e:
-                    self.log_event(f"   [STALE SELL] {symbol}: orderbook unavailable ({e})")
+                    self.logger.info(f"   [STALE SELL] {symbol}: orderbook unavailable ({e})")
                     continue
 
                 if not orderbook.bids or not orderbook.asks:
@@ -5698,7 +5683,7 @@ class IBISTrueAgent:
                         min_profitable_price, price_increment
                     )
                     if target_price < min_profitable_price:
-                        self.log_event(
+                        self.logger.info(
                             f"   🛡️ STALE SELL GUARD: {symbol} reprice blocked ${target_price:.8f} < min profitable ${min_profitable_price:.8f}"
                         )
                         continue
@@ -5715,17 +5700,17 @@ class IBISTrueAgent:
                     )
                     repriced += 1
                     last_reprice[order_id] = now_ms
-                    self.log_event(
+                    self.logger.info(
                         f"   ♻️ STALE SELL REPRICE: {symbol} age={age_seconds:.0f}s "
                         f"${order_price:.8f} -> ${target_price:.8f}"
                     )
                 except Exception as e:
-                    self.log_event(f"   [STALE SELL WARN] {symbol}: reprice failed ({e})")
+                    self.logger.info(f"   [STALE SELL WARN] {symbol}: reprice failed ({e})")
 
             if repriced > 0:
                 self._save_state()
         except Exception as e:
-            self.log_event(f"   [STALE SELL ERROR] {e}")
+            self.logger.info(f"   [STALE SELL ERROR] {e}")
 
     async def apply_zombie_pruning(self, strategy, opportunities):
         """
@@ -5803,17 +5788,17 @@ class IBISTrueAgent:
                 est_fees = qty * exit_price * self._estimate_total_friction_for_symbol(sym)
                 projected_profit = (qty * (exit_price - buy_price)) - est_fees
                 if (not zombie_allow_loss) and (pnl_pct < zombie_min_pnl_pct):
-                    self.log_event(
+                    self.logger.info(
                         f"   🛡️ ZOMBIE PRUNE GUARD: skip {sym} pnl={pnl_pct * 100:+.2f}% < {zombie_min_pnl_pct * 100:+.2f}%"
                     )
                     continue
                 if projected_profit < zombie_min_projected_profit:
-                    self.log_event(
+                    self.logger.info(
                         f"   🛡️ ZOMBIE PRUNE GUARD: skip {sym} projected net ${projected_profit:+.4f} < ${zombie_min_projected_profit:.4f}"
                     )
                     continue
 
-                self.log_event(
+                self.logger.info(
                     f"   🧹 ZOMBIE PRUNE: {sym} age={age_minutes:.1f}m "
                     f"pnl={pnl_pct * 100:+.2f}% projected_net=${projected_profit:+.4f} to free deployable capital"
                 )
@@ -5830,11 +5815,11 @@ class IBISTrueAgent:
             if evicted > 0:
                 # Refresh deployable capital after evictions.
                 await self._refresh_strategy_available(strategy, "zombie_prune")
-                self.log_event(
+                self.logger.info(
                     f"   ✅ ZOMBIE PRUNE COMPLETE: evicted={evicted}, available=${strategy['available']:.2f}"
                 )
         except Exception as e:
-            self.log_event(f"   [ZOMBIE PRUNE ERROR] {e}")
+            self.logger.info(f"   [ZOMBIE PRUNE ERROR] {e}")
 
     async def close_position(self, symbol, reason, exit_price, pnl_pct, strategy) -> bool:
         """Close position and learn. Returns True if closed successfully, False otherwise."""
@@ -5843,14 +5828,14 @@ class IBISTrueAgent:
             min_hold_seconds = max(0, int(self.config.get("recycle_min_hold_seconds", 120)))
             hold_seconds = self._position_hold_seconds(pos)
             if hold_seconds < min_hold_seconds:
-                self.log_event(
+                self.logger.info(
                     f"   🛡️ RECYCLE HOLD GUARD: skip close {symbol} ({reason}) hold={hold_seconds:.0f}s < {min_hold_seconds}s"
                 )
                 return False
 
         allowed, guard_reason = self._recycle_guard_check(symbol, reason)
         if not allowed:
-            self.log_event(
+            self.logger.info(
                 f"   🛡️ RECYCLE THROTTLE: skip close {symbol} ({reason}) - {guard_reason}"
             )
             return False
@@ -5859,14 +5844,14 @@ class IBISTrueAgent:
             self._close_lock = asyncio.Lock()
         async with self._close_lock:
             if symbol in self._closing_symbols:
-                self.log_event(f"   [CLOSE SKIP] {symbol} close already in-flight")
+                self.logger.info(f"   [CLOSE SKIP] {symbol} close already in-flight")
                 return False
             self._closing_symbols.add(symbol)
-            self.log_event(f"   [CLOSE FN START] {symbol} reason={reason}")
+            self.logger.info(f"   [CLOSE FN START] {symbol} reason={reason}")
         pos = self.state["positions"].get(symbol)
-        self.log_event(f"   [CLOSE FN FOUND] {symbol}: {pos is not None}")
+        self.logger.info(f"   [CLOSE FN FOUND] {symbol}: {pos is not None}")
         if not pos:
-            self.log_event(f"   [CLOSE FN END] Position not found for {symbol}")
+            self.logger.info(f"   [CLOSE FN END] Position not found for {symbol}")
             buy_orders = self.state.get("capital_awareness", {}).get("buy_orders", {})
             if symbol in buy_orders:
                 del buy_orders[symbol]
@@ -5880,7 +5865,7 @@ class IBISTrueAgent:
         position_value = original_qty * current_price
 
         if position_value < 1.0:
-            self.log_event(
+            self.logger.info(
                 f"   🧹 DUST SKIP: {symbol} = ${position_value:.6f} < $1, removing from tracking"
             )
             del self.state["positions"][symbol]
@@ -5889,11 +5874,11 @@ class IBISTrueAgent:
             return True
 
         try:
-            self.log_event(f"   [CLOSE FN TRY] About to place order for {symbol}")
+            self.logger.info(f"   [CLOSE FN TRY] About to place order for {symbol}")
             symbol_rules = self.symbol_rules.get(symbol, {})
 
             if not symbol_rules:
-                self.log_event(f"   [CLOSE WARN] No rules for {symbol}, fetching...")
+                self.logger.info(f"   [CLOSE WARN] No rules for {symbol}, fetching...")
 
             # Get symbol rules
             if not symbol_rules:
@@ -5903,7 +5888,7 @@ class IBISTrueAgent:
                 base_increment = symbol_rules.get("baseIncrement", 0.001)
                 base_min_size = symbol_rules.get("baseMinSize", 1.0)
 
-            self.log_event(
+            self.logger.info(
                 f"   [CLOSE DEBUG] {symbol}: original={original_qty}, increment={base_increment}, min={base_min_size}"
             )
 
@@ -5914,7 +5899,7 @@ class IBISTrueAgent:
             if quantity < base_min_size:
                 quantity = original_qty  # Use actual qty, not base_min_size
 
-            self.log_event(f"   [CLOSE DEBUG] {symbol}: orig={original_qty}, final_qty={quantity}")
+            self.logger.info(f"   [CLOSE DEBUG] {symbol}: orig={original_qty}, final_qty={quantity}")
 
             # Use MARKET for PERFECT conditions (instant exit), LIMIT otherwise
             # In perfect storm, we want instant exit to capture profits
@@ -5926,28 +5911,28 @@ class IBISTrueAgent:
                 # MARKET order for instant exit in perfect conditions
                 close_type = "market"
                 close_price = 0
-                self.log_event(
+                self.logger.info(
                     f"   [CLOSE EXEC] Creating MARKET sell for {symbol} @ CURRENT (PERFECT CONDITIONS - MAX SPEED)"
                 )
             elif is_take_profit:
                 # Limit order at exit price to save maker fees
                 close_type = "limit"
                 close_price = exit_price
-                self.log_event(
+                self.logger.info(
                     f"   [CLOSE EXEC] Creating LIMIT sell for {symbol} @ ${close_price:.6f} with qty={quantity}"
                 )
             else:
                 # Market order for immediate execution on SL/Recycle
                 close_type = "market"
                 close_price = 0
-                self.log_event(
+                self.logger.info(
                     f"   [CLOSE EXEC] Creating MARKET sell for {symbol} with qty={quantity}"
                 )
 
             # Check if there's already an open sell order for this symbol
             existing_sell_orders = self.state.get("capital_awareness", {}).get("sell_orders", {})
             if symbol in existing_sell_orders and existing_sell_orders[symbol]:
-                self.log_event(
+                self.logger.info(
                     f"   [CLOSE WARN] Already has open sell order for {symbol}, skipping"
                 )
                 self._closing_symbols.discard(symbol)
@@ -6005,7 +5990,7 @@ class IBISTrueAgent:
                         except Exception:
                             pass
                         if remaining_qty > 0:
-                            self.log_event(
+                            self.logger.info(
                                 f"   [CLOSE FALLBACK] {symbol}: TP limit unfilled, fallback MARKET for {remaining_qty:.8f}"
                             )
                             market_result = await asyncio.wait_for(
@@ -6046,18 +6031,18 @@ class IBISTrueAgent:
                         remaining_qty = max(0.0, quantity - filled_qty)
                         self.state["positions"][symbol]["quantity"] = remaining_qty
                         self._save_state()
-                        self.log_event(
+                        self.logger.info(
                             f"   [CLOSE PARTIAL] {symbol}: filled={filled_qty:.8f}, remaining={remaining_qty:.8f}"
                         )
                     else:
-                        self.log_event(
+                        self.logger.info(
                             f"   [CLOSE PENDING] {symbol}: order not filled yet, keeping position open"
                         )
                     self._closing_symbols.discard(symbol)
                     return False
 
                 self.state["daily"]["orders_filled"] += 1
-                self.log_event(
+                self.logger.info(
                     f"   [CLOSE SUCCESS] {symbol} filled qty={filled_qty:.8f} @ {actual_fill_price:.8f}"
                 )
 
@@ -6067,15 +6052,15 @@ class IBISTrueAgent:
                     del buy_orders[symbol]
 
             except asyncio.TimeoutError:
-                self.log_event(f"   [CLOSE ERROR] Timeout for {symbol}")
+                self.logger.info(f"   [CLOSE ERROR] Timeout for {symbol}")
                 self._closing_symbols.discard(symbol)
                 return False
             except Exception as e:
                 error_msg = str(e)
-                self.log_event(f"   [CLOSE ERROR] {symbol}: {error_msg}")
+                self.logger.info(f"   [CLOSE ERROR] {symbol}: {error_msg}")
 
                 if "Order size increment invalid" in error_msg:
-                    self.log_event(f"   [CLOSE RETRY] Adjusting quantity for {symbol}...")
+                    self.logger.info(f"   [CLOSE RETRY] Adjusting quantity for {symbol}...")
                     try:
                         sym_data = await self.client.get_symbol(f"{symbol}-USDT")
                         if sym_data:
@@ -6092,7 +6077,7 @@ class IBISTrueAgent:
                             if quantity < base_min_size:
                                 quantity = base_min_size
 
-                            self.log_event(
+                            self.logger.info(
                                 f"   [CLOSE RETRY] {symbol}: orig={original_qty}, inc={base_increment}, adj={quantity}"
                             )
 
@@ -6107,11 +6092,11 @@ class IBISTrueAgent:
                                 ),
                                 timeout=10.0,
                             )
-                            self.log_event(f"   [CLOSE SUCCESS] {symbol} retry succeeded")
+                            self.logger.info(f"   [CLOSE SUCCESS] {symbol} retry succeeded")
                         else:
                             raise Exception(f"Symbol data not found for {symbol}")
                     except Exception as retry_error:
-                        self.log_event(f"   [CLOSE FAIL] {symbol} retry failed: {retry_error}")
+                        self.logger.info(f"   [CLOSE FAIL] {symbol} retry failed: {retry_error}")
                         self._closing_symbols.discard(symbol)
                         return False
 
@@ -6122,14 +6107,14 @@ class IBISTrueAgent:
                     or "minimum" in error_msg.lower()
                     or "funds should more than" in error_msg.lower()
                 ):
-                    self.log_event(f"   [CLOSE WARN] {symbol} - insufficient funds, reconciling")
+                    self.logger.info(f"   [CLOSE WARN] {symbol} - insufficient funds, reconciling")
                     try:
                         balances = await self.client.get_all_balances(min_value_usd=0)
                         sym_bal = balances.get(symbol, {}) if isinstance(balances, dict) else {}
                         exch_available = float(sym_bal.get("available", 0) or 0)
                         exch_total = float(sym_bal.get("balance", exch_available) or exch_available)
                         if exch_total <= 0:
-                            self.log_event(
+                            self.logger.info(
                                 f"   [CLOSE RECONCILE] {symbol}: exchange balance is 0, removing stale local position"
                             )
                             self.state.get("positions", {}).pop(symbol, None)
@@ -6161,14 +6146,14 @@ class IBISTrueAgent:
                             if symbol in self.state.get("positions", {}):
                                 self.state["positions"][symbol]["quantity"] = adjusted_qty
                                 self._save_state()
-                            self.log_event(
+                            self.logger.info(
                                 f"   [CLOSE RECONCILE] {symbol}: balance locked (avail=0, total={exch_total}), keeping position tracked"
                             )
                             self._closing_symbols.discard(symbol)
                             return False
 
                         if adjusted_qty <= 0:
-                            self.log_event(
+                            self.logger.info(
                                 f"   [CLOSE RECONCILE] {symbol}: only dust remains ({exch_total}), removing local position"
                             )
                             self.state.get("positions", {}).pop(symbol, None)
@@ -6185,11 +6170,11 @@ class IBISTrueAgent:
                         if symbol in self.state.get("positions", {}):
                             self.state["positions"][symbol]["quantity"] = adjusted_qty
                             self._save_state()
-                        self.log_event(
+                        self.logger.info(
                             f"   [CLOSE RECONCILE] {symbol}: adjusted local qty {original_qty} -> {adjusted_qty}, will retry next cycle"
                         )
                     except Exception as rec_err:
-                        self.log_event(f"   [CLOSE RECONCILE ERROR] {symbol}: {rec_err}")
+                        self.logger.info(f"   [CLOSE RECONCILE ERROR] {symbol}: {rec_err}")
                     self._closing_symbols.discard(symbol)
                     return False
                 else:
@@ -6205,11 +6190,11 @@ class IBISTrueAgent:
             if actual_fee > 0:
                 pnl = (close_qty * (actual_fill_price - pos["buy_price"])) - actual_fee
                 fees_used = actual_fee
-                self.log_event(f"   [CLOSE PnL] Using ACTUAL fees: {actual_fee:.6f} USDT")
+                self.logger.info(f"   [CLOSE PnL] Using ACTUAL fees: {actual_fee:.6f} USDT")
             else:
                 pnl = (close_qty * (actual_fill_price - pos["buy_price"])) - estimated_fees
                 fees_used = estimated_fees
-                self.log_event(f"   [CLOSE PnL] Using ESTIMATED fees: {estimated_fees:.6f} USDT")
+                self.logger.info(f"   [CLOSE PnL] Using ESTIMATED fees: {estimated_fees:.6f} USDT")
 
             pnl_pct_actual = (
                 (actual_fill_price - pos["buy_price"]) / pos["buy_price"]
@@ -6444,7 +6429,7 @@ class IBISTrueAgent:
                                     pos["sl"] = new_stop
                                     self.state["positions"][sym] = pos
 
-                                    self.log_event(
+                                    self.logger.info(
                                         f"      🛡️ TRAILING STOP UPDATE: {sym} | "
                                         f"SL: ${old_sl:.4f} → ${new_stop:.4f} | "
                                         f"Price: ${price:.4f}"
@@ -6524,9 +6509,9 @@ class IBISTrueAgent:
                         if ticker and ticker.price:
                             price = float(ticker.price)
                     except (TypeError, ValueError) as e:
-                        self.log_event(f"⚠️ Failed to parse data: {e}")
+                        self.logger.info(f"⚠️ Failed to parse data: {e}")
                     except Exception as e:
-                        self.log_event(f"⚠️ Unexpected error: {e}")
+                        self.logger.info(f"⚠️ Unexpected error: {e}")
 
                 if price > 0:
                     value = balance * price
@@ -6614,9 +6599,9 @@ class IBISTrueAgent:
                         if ticker and ticker.price:
                             price = float(ticker.price)
                     except (TypeError, ValueError) as e:
-                        self.log_event(f"⚠️ Failed to parse data: {e}")
+                        self.logger.info(f"⚠️ Failed to parse data: {e}")
                     except Exception as e:
-                        self.log_event(f"⚠️ Unexpected error: {e}")
+                        self.logger.info(f"⚠️ Unexpected error: {e}")
 
                 if price > 0:
                     value = balance * price
@@ -7128,7 +7113,7 @@ class IBISTrueAgent:
         try:
             perf = self.agent_memory.get("performance_by_symbol", {})
             if not perf:
-                self.log_event("   🧠 Learning: No historical data yet")
+                self.logger.info("   🧠 Learning: No historical data yet")
                 return
 
             total_trades = sum(p.get("trades", 0) for p in perf.values())
@@ -7164,19 +7149,19 @@ class IBISTrueAgent:
             if winning_regimes:
                 best_regime = max(winning_regimes, key=winning_regimes.get)
                 self.agent_memory["learned_regimes"]["best"] = best_regime
-                self.log_event(f"   🧠 Learning: Best regime = {best_regime}")
+                self.logger.info(f"   🧠 Learning: Best regime = {best_regime}")
 
             if losing_regimes:
                 worst_regime = max(losing_regimes, key=losing_regimes.get)
                 self.agent_memory["learned_regimes"]["avoid"] = worst_regime
-                self.log_event(f"   🧠 Learning: Avoid regime = {worst_regime}")
+                self.logger.info(f"   🧠 Learning: Avoid regime = {worst_regime}")
 
             # Save learning every 10 cycles
             if cycles % 10 == 0:
                 self._save_memory()
 
         except Exception as e:
-            self.log_event(f"   ⚠️ Learning error: {e}")
+            self.logger.info(f"   ⚠️ Learning error: {e}")
 
     async def update_adaptive_risk(self):
         """
@@ -7222,13 +7207,13 @@ class IBISTrueAgent:
             self.config["risk_per_trade"] = new_risk
 
             if trades > 0 and trades % 10 == 0:
-                self.log_event(
+                self.logger.info(
                     f"   🛡️ Adaptive Risk: {new_risk * 100:.2f}%/trade "
                     f"(PnL: {current_pnl:+.2f}, WR: {win_rate:.0%}, fills: {trades})"
                 )
 
         except Exception as e:
-            self.log_event(f"   ⚠️ Adaptive risk error: {e}")
+            self.logger.info(f"   ⚠️ Adaptive risk error: {e}")
 
     async def run(self):
         """Main autonomous loop"""
@@ -7245,7 +7230,7 @@ class IBISTrueAgent:
                 # 🗓️ DAILY RESET: Check if date changed and reset daily stats
                 today = datetime.now().strftime("%Y-%m-%d")
                 if self.state.get("daily", {}).get("date") != today:
-                    self.log_event(
+                    self.logger.info(
                         f"   🗓️ NEW DAY: Resetting daily stats (was {self.state.get('daily', {}).get('date')})"
                     )
                     await self.update_capital_awareness()
@@ -7273,29 +7258,29 @@ class IBISTrueAgent:
                     await self.sync_pnl_from_kucoin()
 
                 # Step 2: Analyze market intelligence
-                self.log_event("   🔍 Starting Market Analysis cycle...")
+                self.logger.info("   🔍 Starting Market Analysis cycle...")
                 await self.analyze_market_intelligence()
 
                 # Step 3: Detect regime
                 regime = "VOLATILE"
-                self.log_event(f"   📊 Regime: {regime} (default)")
+                self.logger.info(f"   📊 Regime: {regime} (default)")
 
                 # Step 3: Assess market conditions
                 market_conditions = self._assess_market_conditions()
 
                 # Step 4: Mode determination
                 mode = await self.determine_agent_mode(regime, self.market_intel)
-                self.log_event(f"   🤖 Mode: {mode}")
+                self.logger.info(f"   🤖 Mode: {mode}")
 
                 # Step 5: Execute strategy
                 strategy = await self.execute_strategy(regime, mode)
-                self.log_event(
+                self.logger.info(
                     f"   📜 Strategy: positions={len(self.state['positions'])}/{strategy['max_positions']}, avail=${strategy['available']:.2f}"
                 )
 
                 # Simple inline market scan if market_intel is empty
                 if not self.market_intel:
-                    self.log_event("   ⚡ Quick market scan...")
+                    self.logger.info("   ⚡ Quick market scan...")
                     try:
                         tickers = await self.client.get_tickers()
                         min_score = self.config.get("min_score", 70)  # Use strategy threshold
@@ -7317,29 +7302,29 @@ class IBISTrueAgent:
                                     "volatility": 0.02,
                                     "momentum_1h": change,
                                 }
-                        self.log_event(
+                        self.logger.info(
                             f"   ✅ Scanned {len(self.market_intel)} symbols (score ≥ {min_score})"
                         )
                     except Exception as e:
-                        self.log_event(f"   ⚠️ Scan failed: {e}")
+                        self.logger.info(f"   ⚠️ Scan failed: {e}")
 
                 # Step 7 & 10: Hunt for ALL opportunities (HYPER TRADING)
-                self.log_event(
+                self.logger.info(
                     f"   🎯 ANALYZING {len(self.market_intel)} opportunities for trade entry..."
                 )
                 opportunities = await self.find_all_opportunities(strategy)
                 opportunities = self._admission_rank_opportunities(opportunities, strategy)
-                self.log_event(f"   🔥 FOUND {len(opportunities)} TRADEABLE candidates")
+                self.logger.info(f"   🔥 FOUND {len(opportunities)} TRADEABLE candidates")
                 best = opportunities[0] if opportunities else None
 
                 # Step 6: Dynamic Position Monitoring (CRITICAL)
-                self.log_event("   🕵️ Checking existing positions for TP/SL/Decay...")
+                self.logger.info("   🕵️ Checking existing positions for TP/SL/Decay...")
                 await self.check_positions(strategy)
                 await self.manage_stale_sell_orders()
                 await self.update_capital_awareness()
 
                 open_count = len(self.state["positions"])
-                self.log_event(
+                self.logger.info(
                     f"   🔄 ENTERING TRADE LOOP: {len(opportunities)} opportunities, current positions: {open_count}"
                 )
 
@@ -7353,7 +7338,7 @@ class IBISTrueAgent:
                 )
                 if has_insufficient_capital and opportunities:
                     if cycle % 10 == 0 or cycle == 1:  # Only log every 10 cycles to prevent spam
-                        self.log_event(
+                        self.logger.info(
                             f"   🛑 Insufficient capital (${strategy['available']:.2f} < ${TRADING.POSITION.MIN_CAPITAL_PER_TRADE} minimum)"
                         )
 
@@ -7375,13 +7360,13 @@ class IBISTrueAgent:
                         self.config.get("recycle_requires_empty_buy_queue", True)
                     )
                     if pending_buys_now >= max_open_buy_orders:
-                        self.log_event(
+                        self.logger.info(
                             f"   🧱 QUEUE GUARD: pending buys {pending_buys_now}/{max_open_buy_orders}, deferring new entries this cycle"
                         )
                         break
                     # 🚀 PROFIT RECYCLING: Only recycle for high-quality opportunities (score >= 70)
                     # This prevents costly recycling for marginal opportunities
-                    self.log_event(
+                    self.logger.info(
                         f"   [RECYCLE TEST] available=${strategy['available']:.2f}, score={opportunity['score']:.1f}"
                     )
                     if (
@@ -7390,11 +7375,11 @@ class IBISTrueAgent:
                         and opportunity["score"] >= 70
                     ):
                         if recycle_requires_empty_buy_queue and pending_buys_now > 0:
-                            self.log_event(
+                            self.logger.info(
                                 f"   🧱 RECYCLE DEFERRED: pending buys={pending_buys_now}, waiting for queue to clear before recycling capital"
                             )
                             continue
-                        self.log_event(
+                        self.logger.info(
                             f"   🔱 CAPITAL RECYCLING: ${strategy['available']:.2f} available for {opportunity['symbol']} (Score: {opportunity['score']:.0f})"
                         )
                         recycle_decision_made = True
@@ -7427,19 +7412,19 @@ class IBISTrueAgent:
                                 self.config.get("recycle_min_projected_profit_usdt", 0.03)
                             )
                             if projected_profit < recycle_min_projected_profit:
-                                self.log_event(
+                                self.logger.info(
                                     f"      🛡️ RECYCLE GUARD: skipping recycle close for {sym}, projected net ${projected_profit:+.4f} < ${recycle_min_projected_profit:.4f}"
                                 )
                                 continue
                             if (not recycle_allow_loss) and (best_pnl < recycle_min_pnl_pct):
-                                self.log_event(
+                                self.logger.info(
                                     f"      🛡️ RECYCLE GUARD: skipping recycle close for {sym} at {best_pnl * 100:+.2f}%"
                                 )
                                 continue
-                            self.log_event(
+                            self.logger.info(
                                 f"      💰 RECYCLING: Closing {sym} at {best_pnl * 100:+.2f}% (projected net ${projected_profit:+.4f}) to fund {opportunity['symbol']}"
                             )
-                            self.log_event(f"   [RECYCLE BEFORE] calling close_position for {sym}")
+                            self.logger.info(f"   [RECYCLE BEFORE] calling close_position for {sym}")
                             await self.close_position(
                                 sym,
                                 "TAKE_PROFIT_RECYCLE" if best_pnl > 0 else "RECYCLE_CAPITAL",
@@ -7447,7 +7432,7 @@ class IBISTrueAgent:
                                 best_pnl,
                                 strategy,
                             )
-                            self.log_event(f"   [RECYCLE AFTER] close_position completed for {sym}")
+                            self.logger.info(f"   [RECYCLE AFTER] close_position completed for {sym}")
                             await self._refresh_strategy_available(strategy, "recycle_close")
 
                     # 🚀 AGGRESSIVE ALPHA RECYCLING: Clear positions for ANY high-score opportunity
@@ -7458,11 +7443,11 @@ class IBISTrueAgent:
                         and is_strong
                     ):
                         if recycle_requires_empty_buy_queue and pending_buys_now > 0:
-                            self.log_event(
+                            self.logger.info(
                                 f"   🧱 ALPHA RECYCLE DEFERRED: pending buys={pending_buys_now}, skipping recycle this cycle"
                             )
                             continue
-                        self.log_event(
+                        self.logger.info(
                             f"   🔱 STRONG SIGNAL: {opportunity['symbol']} (Score: {opportunity['score']:.0f}). Clearing stagnant capital..."
                         )
                         alpha_recycle_decision_made = True
@@ -7491,7 +7476,7 @@ class IBISTrueAgent:
                             allow_recycling = score_variance >= TRADING.ALPHA.MIN_SCORE_VARIANCE
 
                             if not allow_recycling:
-                                self.log_event(
+                                self.logger.info(
                                     f"      🛡️ SAME-SCORE PROTECTION: All assets have similar conviction ({avg_position_score:.1f} vs {opportunity_score:.1f}). Skipping recycling."
                                 )
                                 recycled_any = False
@@ -7549,7 +7534,7 @@ class IBISTrueAgent:
                                         or has_better_alternative
                                         or is_dust
                                     ):
-                                        self.log_event(
+                                        self.logger.info(
                                             f"      ♻️ RECYCLING: Closing {sym} (Score: {pos_score:.1f}) to fund {opportunity['symbol']} (Score: {opportunity_score:.1f})"
                                         )
                                         close_success = await self.close_position(
@@ -7560,7 +7545,7 @@ class IBISTrueAgent:
                                             strategy,
                                         )
                                         if not close_success:
-                                            self.log_event(
+                                            self.logger.info(
                                                 f"      ⚠️ RECYCLING FAILED: Could not close {sym}"
                                             )
                                             recycled_any = False
@@ -7589,7 +7574,7 @@ class IBISTrueAgent:
                     if open_count < strategy["max_positions"]:
                         # 🛡️ HARD MINIMUM: Don't create dust positions
                         if strategy["available"] < min_trade_capital:
-                            self.log_event(
+                            self.logger.info(
                                 f"   🛑 Insufficient capital (${strategy['available']:.2f} < ${min_trade_capital:.2f} minimum)"
                             )
                             break
@@ -7597,7 +7582,7 @@ class IBISTrueAgent:
                         # 🎯 SCORE CHECK: Only execute if opportunity meets minimum score threshold
                         min_score = self.config.get("min_score", 70)
                         if opportunity["score"] < min_score:
-                            self.log_event(
+                            self.logger.info(
                                 f"   ❌ SKIPPING: {opportunity['symbol']} (Score: {opportunity['score']:.1f} < {min_score:.1f} threshold)"
                             )
                             continue
@@ -7607,17 +7592,17 @@ class IBISTrueAgent:
 
                         # Check if we already have a position in this symbol
                         if symbol in self.state["positions"]:
-                            self.log_event(f"   🛑 SKIPPING: Already have position in {symbol}")
+                            self.logger.info(f"   🛑 SKIPPING: Already have position in {symbol}")
                             continue
 
                         # Check tracked open orders (synced by update_capital_awareness) to avoid duplicate buys.
                         if symbol in tracked_open_order_symbols:
-                            self.log_event(f"   🛑 SKIPPING: Already have open order for {symbol}")
+                            self.logger.info(f"   🛑 SKIPPING: Already have open order for {symbol}")
                             continue
 
                         cooldown_remaining = self._get_buy_reentry_cooldown_remaining(symbol)
                         if cooldown_remaining > 0:
-                            self.log_event(
+                            self.logger.info(
                                 f"   🧊 SKIPPING: Reentry cooldown active for {symbol} ({cooldown_remaining:.0f}s remaining)"
                             )
                             continue
@@ -7627,7 +7612,7 @@ class IBISTrueAgent:
                             symbol, current_price
                         )
                         if price_guard_skip:
-                            self.log_event(
+                            self.logger.info(
                                 f"   🧊 SKIPPING: Reentry price guard for {symbol} - {price_guard_reason}"
                             )
                             continue
@@ -7636,7 +7621,7 @@ class IBISTrueAgent:
                             self._get_entry_reject_cooldown_remaining(symbol)
                         )
                         if reject_cd_remaining > 0:
-                            self.log_event(
+                            self.logger.info(
                                 f"   🧊 SKIPPING: Entry reject cooldown for {symbol} "
                                 f"({reject_cd_remaining:.0f}s remaining, reason={reject_cd_reason or 'execution_reject'})"
                             )
@@ -7647,12 +7632,12 @@ class IBISTrueAgent:
                             strategy, symbol, self.market_intel
                         )
                         if position_size < TRADING.POSITION.MIN_CAPITAL_PER_TRADE:
-                            self.log_event(
+                            self.logger.info(
                                 f"   🛑 SKIPPING: Position size ${position_size:.2f} < $11 minimum for {symbol}"
                             )
                             continue
 
-                        self.log_event(f"   🚀 HYPER-TRADE START: {symbol} (${position_size:.2f})")
+                        self.logger.info(f"   🚀 HYPER-TRADE START: {symbol} (${position_size:.2f})")
                         await self.open_position(opportunity, strategy)
                         tracked_open_order_symbols.add(symbol)
                         self._save_state()  # Save state after opening position
@@ -7663,7 +7648,7 @@ class IBISTrueAgent:
                         if strategy["available"] < min_trade_capital:
                             has_insufficient_capital = True
                     else:
-                        self.log_event(f"   🛑 Max positions reached ({open_count})")
+                        self.logger.info(f"   🛑 Max positions reached ({open_count})")
                         break
 
                 # Step 8: Log and Print (EXPLAIN LATER)
@@ -7673,7 +7658,7 @@ class IBISTrueAgent:
                 self._save_state()
 
                 if self.single_scan:
-                    self.log_event("   🏁 Single-scan complete. Exiting.")
+                    self.logger.info("   🏁 Single-scan complete. Exiting.")
                     break
 
                 wait = strategy["scan_interval"]
@@ -7689,6 +7674,67 @@ class IBISTrueAgent:
         self._save_state()
         self._save_memory()
         await self.client.close()
+
+    async def close(self):
+        """
+        Close all resources used by the IBISTrueAgent.
+
+        This method ensures proper cleanup of all open connections and resources,
+        including the KuCoin client, free intelligence service, enhanced intelligence
+        streams, and any other managed resources.
+        """
+        self.logger.info("   🛑 Closing IBISTrueAgent resources...")
+
+        try:
+            # Close KuCoin client connection
+            if hasattr(self, "client") and self.client is not None:
+                await self.client.close()
+                self.logger.info("   ✅ KuCoin client closed")
+        except Exception as e:
+            self.logger.info(f"   ⚠️ Failed to close KuCoin client: {e}")
+
+        try:
+            # Close free intelligence service
+            if hasattr(self, "free_intel") and self.free_intel is not None:
+                await self.free_intel.close()
+                self.logger.info("   ✅ Free intelligence service closed")
+        except Exception as e:
+            self.logger.info(f"   ⚠️ Failed to close free intelligence service: {e}")
+
+        try:
+            # Close enhanced intelligence streams
+            if hasattr(self, "enhanced_intel") and self.enhanced_intel is not None:
+                await self.enhanced_intel.close()
+                self.logger.info("   ✅ Enhanced intelligence streams closed")
+        except Exception as e:
+            self.logger.info(f"   ⚠️ Failed to close enhanced intelligence streams: {e}")
+
+        try:
+            # Close cross exchange monitor
+            if hasattr(self, "cross_exchange") and self.cross_exchange is not None:
+                await self.cross_exchange.close()
+                self.logger.info("   ✅ Cross exchange monitor closed")
+        except Exception as e:
+            self.logger.info(f"   ⚠️ Failed to close cross exchange monitor: {e}")
+
+        try:
+            # Clear KuCoin client instance from global state
+            from ibis.exchange.kucoin_client import clear_kucoin_client_instance
+
+            clear_kucoin_client_instance()
+            self.logger.info("   ✅ KuCoin client instance cleared")
+        except Exception as e:
+            self.logger.info(f"   ⚠️ Failed to clear KuCoin client instance: {e}")
+
+        # Save final state and memory
+        try:
+            self._save_state()
+            self._save_memory()
+            self.logger.info("   ✅ Final state and memory saved")
+        except Exception as e:
+            self.logger.info(f"   ⚠️ Failed to save final state: {e}")
+
+        self.logger.info("   🎉 IBISTrueAgent closed successfully")
 
 
 # Compatibility Alias

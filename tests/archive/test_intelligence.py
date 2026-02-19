@@ -36,4 +36,5 @@ async def test_intelligence():
         print("❌ Failed to get market data from CoinGecko")
 
 
-asyncio.run(test_intelligence())
+if __name__ == "__main__":
+    asyncio.run(test_intelligence())

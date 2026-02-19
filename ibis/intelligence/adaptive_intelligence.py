@@ -1,3 +1,4 @@
+from ibis.core.logging_config import get_logger
 """
 IBIS Adaptive Intelligence System
 =================================
@@ -8,13 +9,12 @@ import asyncio
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-import logging
 import json
 from collections import defaultdict, deque
 
 import numpy as np
 
-logger = logging.getLogger("IBIS")
+logger = get_logger(__name__)
 
 
 class MarketConditionDetector:
@@ -102,6 +102,12 @@ class MarketConditionDetector:
             timestamp = market_data["timestamp"]
             if isinstance(timestamp, str):
                 timestamp = datetime.fromisoformat(timestamp)
+            elif isinstance(timestamp, int):
+                # Handle both second and millisecond timestamps
+                if timestamp > 9999999999:  # Milliseconds
+                    timestamp = datetime.fromtimestamp(timestamp / 1000)
+                else:  # Seconds
+                    timestamp = datetime.fromtimestamp(timestamp)
             key_parts.append(str(timestamp.timestamp() // 300))
 
         return "|".join(key_parts)

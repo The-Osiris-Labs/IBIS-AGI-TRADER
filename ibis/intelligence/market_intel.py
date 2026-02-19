@@ -266,9 +266,7 @@ class MarketIntelligence:
         )
 
         # 1. Price Action Analysis
-        price_signal = await self._analyze_price_action(
-            price, price_change, highs, lows, closes
-        )
+        price_signal = await self._analyze_price_action(price, price_change, highs, lows, closes)
         insight.strength += price_signal["strength"] * 0.2
 
         # 2. Volume Profile Analysis
@@ -289,9 +287,7 @@ class MarketIntelligence:
 
         # 6. Cross-Asset Correlation
         if related_symbols:
-            corr_signal = await self._analyze_correlations(
-                symbol, related_symbols, price_change
-            )
+            corr_signal = await self._analyze_correlations(symbol, related_symbols, price_change)
             insight.correlations = corr_signal
             insight.strength += corr_signal.get("strength", 0.5) * 0.15
 
@@ -401,9 +397,7 @@ class MarketIntelligence:
         rsi = 100 - (100 / (1 + rs))
         return rsi
 
-    async def _analyze_volume_profile(
-        self, price: float, profile: VolumeProfile
-    ) -> Dict:
+    async def _analyze_volume_profile(self, price: float, profile: VolumeProfile) -> Dict:
         """Analyze volume profile."""
         signal = "NEUTRAL"
         strength = 0.5
@@ -508,9 +502,7 @@ class MarketIntelligence:
 
         return {"signal": signal, "strength": strength}
 
-    async def _analyze_correlations(
-        self, symbol: str, related: List[str], change: float
-    ) -> Dict:
+    async def _analyze_correlations(self, symbol: str, related: List[str], change: float) -> Dict:
         """Analyze cross-asset correlations."""
         strength = 0.5
 
@@ -671,9 +663,7 @@ class LowCapDiscovery:
     ) -> List[CoinOpportunity]:
         """Get top ranked opportunities."""
         filtered = [
-            o
-            for o in self.watchlist
-            if o.overall_score >= min_score and o.risk_score <= max_risk
+            o for o in self.watchlist if o.overall_score >= min_score and o.risk_score <= max_risk
         ]
 
         return sorted(filtered, key=lambda x: x.overall_score, reverse=True)[:limit]
@@ -716,11 +706,20 @@ class AdvancedRiskManager:
         # Apply portfolio risk limit
         max_size = capital * self.max_portfolio_risk
 
+        # Ensure minimum position size is respected
+        from ibis.core.trading_constants import TRADING
+
+        min_size = TRADING.POSITION.MIN_CAPITAL_PER_TRADE
+        if size < min_size and capital >= min_size:
+            size = min_size
+
+        # Ensure max size is at least minimum size if capital allows
+        if max_size < min_size and capital >= min_size:
+            max_size = min_size
+
         return min(size, max_size)
 
-    def calculate_kelly_fraction(
-        self, win_rate: float, avg_win: float, avg_loss: float
-    ) -> float:
+    def calculate_kelly_fraction(self, win_rate: float, avg_win: float, avg_loss: float) -> float:
         """Calculate Kelly criterion for position sizing."""
         if avg_loss == 0:
             return 0

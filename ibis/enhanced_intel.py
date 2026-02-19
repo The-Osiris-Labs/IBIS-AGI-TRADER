@@ -1,3 +1,4 @@
+from ibis.core.logging_config import get_logger
 """
 IBIS Enhanced Intelligence Integration
 ====================================
@@ -18,7 +19,6 @@ import pandas as pd
 from datetime import datetime
 from typing import Dict, List, Optional
 from dataclasses import dataclass
-import logging
 
 from ibis.intelligence.quality_assurance import DataQualityAssurance, IntelligenceCleansingPipeline
 from ibis.intelligence.advanced_signal_processor import AdvancedSignalProcessor, SignalQualityScorer
@@ -31,7 +31,7 @@ from ibis.intelligence.error_handler import ErrorHandler, CircuitBreaker, RetryM
 from ibis.intelligence.adaptive_intelligence import MarketConditionDetector, AdaptiveSignalProcessor
 from ibis.intelligence.monitoring import IntelligenceMonitor, Profiler
 
-logger = logging.getLogger("IBIS")
+logger = get_logger(__name__)
 
 
 @dataclass

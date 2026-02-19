@@ -1,3 +1,5 @@
+from ibis.core.logging_config import get_logger
+
 """
 IBIS v8 EXECUTION ENGINE
 Orchestrates the trading lifecycle: Data -> Strategy -> Execution -> Database.
@@ -6,9 +8,8 @@ Orchestrates the trading lifecycle: Data -> Strategy -> Execution -> Database.
 import os
 import asyncio
 import time
-import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, Any
 
 from ibis.core.config import Config
 from ibis.database.db import IbisDB
@@ -20,9 +21,11 @@ from ibis.market_intelligence import market_intelligence
 from ibis.position_rotation import PositionRotationManager
 from ibis.state_sync import StateSynchronizer
 from ibis.core.trading_constants import TRADING
+from ibis.pnl_tracker import PnLTracker
+from ibis.core.risk_manager import RiskManager
 
 # Configure logging
-logger = logging.getLogger("ibis_v8")
+logger = get_logger(__name__)
 
 
 class ExecutionEngine:
@@ -33,6 +36,38 @@ class ExecutionEngine:
         self.strategy = NativeLimitlessSwing({})
         self.funnel = MarketFunnel(self.client)  # Legacy funnel for initial screening
         self.running = False
+        self.pnl_tracker = PnLTracker()
+        self.risk_manager = RiskManager()
+        self.risk_manager.set_database(self.db)
+
+    def _update_dynamic_fees(self):
+        """Update dynamic fee rates from historical data"""
+        # Get fees from both PnL tracker (KuCoin API) and database (local trades)
+        symbol_fees_db = self.db.get_average_fees_per_symbol()
+        symbol_fees_tracker = self.pnl_tracker.calculate_average_fees_per_symbol()
+
+        # Combine and update trading constants
+        all_symbols = set(symbol_fees_db.keys()).union(set(symbol_fees_tracker.keys()))
+
+        for symbol in all_symbols:
+            # Use database fees if available, fallback to tracker, then default
+            if symbol in symbol_fees_db:
+                fees = symbol_fees_db[symbol]
+            elif symbol in symbol_fees_tracker:
+                fees = symbol_fees_tracker[symbol]
+            else:
+                continue
+
+            TRADING.EXCHANGE.update_symbol_fees(symbol, fees["maker"], fees["taker"])
+
+        # Also update risk manager's fee rates
+        self.risk_manager.update_fee_rates()
+
+        # Log fee update
+        avg_fees = TRADING.EXCHANGE.get_average_fees()
+        logger.info(
+            f"Dynamic fee rates updated - Avg Maker: {avg_fees['maker']:.4%}, Avg Taker: {avg_fees['taker']:.4%}"
+        )
 
     async def initialize(self):
         """Initialize all components."""
@@ -44,12 +79,20 @@ class ExecutionEngine:
             await self.client.get_all_balances()
             logger.info("✅ KuCoin Connection Verified")
         except Exception as e:
-            logger.error(f"❌ KuCoin Connection Failed: {e}")
+            logger.error(f"❌ KuCoin Connection Failed: {e}", exc_info=True)
             raise
 
         # Initialize Monitors
         await self.monitor.initialize()
         logger.info("✅ Cross-Exchange Monitor Active")
+
+        # Sync trades to PnL tracker
+        await self.pnl_tracker.sync_trades_from_kucoin(self.client)
+        self.pnl_tracker.match_trades_fifo()
+        logger.info(f"✅ PnL Tracker: {len(self.pnl_tracker._matched_trades)} matched trades")
+
+        # Update dynamic fees
+        self._update_dynamic_fees()
 
         # Sync State
         await self.sync_state()
@@ -68,7 +111,7 @@ class ExecutionEngine:
             tickers_list = await self.client.get_tickers()
             tickers = {t.symbol: t for t in tickers_list}
         except Exception as e:
-            logger.error(f"❌ Failed to sync hardware state: {e}")
+            logger.error(f"❌ Failed to sync hardware state: {e}", exc_info=True)
             return
 
         logger.info(f"   🔄 Analyzing {len(balances)} non-zero balances...")
@@ -116,16 +159,6 @@ class ExecutionEngine:
         # Check for ghosts (in DB but not in balances)
         # Note: This is simplified; assumes all db positions are spot assets
 
-    async def fetch_market_data(self, symbol: str) -> Dict:
-        """Fetch all data required for strategy analysis."""
-        # 1. Get 15m Candles (Limit 50 for indicators)
-        # Note: KuCoin client needs fetch_ohlcv method.
-        # Using existing get_kline_data from legacy if available, or fetch_ohlcv from ccxt if integrated.
-        # Fallback to pure ticker for now if OHLCV missing, but Strategy needs closes.
-
-        # We need to implement a clean fetch_ohlcv wrapper in the engine
-        # leveraging the existing client or direct API calls.
-
     async def fetch_market_data(self, symbol: str, intelligence_batch: Dict = None) -> Dict:
         """Fetch all data needed for strategy analysis for a symbol."""
         # 1. Get 15m Candles
@@ -158,10 +191,10 @@ class ExecutionEngine:
         """🚀 SMART PASSIVE TRADING
 
         IBIS philosophy:
-        - Trade when intelligence says trade
-        - Position size scales with capital (15% of available)
-        - +0.6% limit sell, -1.0% hard stop
-        - Walk away and let orders fill
+            - Trade when intelligence says trade
+            - Position size scales with capital (15% of available)
+            - +0.6% limit sell, -1.0% hard stop
+            - Walk away and let orders fill
         """
         if signal["signal"] == "BUY":
             # Check capital
@@ -196,18 +229,32 @@ class ExecutionEngine:
 
                 logger.info(f"   📊 Bought: {quantity:.8f} {symbol} @ ${entry_price:.6f}")
 
-                # Calculate +3.0% limit sell price
-                take_profit_price = entry_price * (1 + TRADING.RISK.TAKE_PROFIT_PCT)
-                expected_profit = (take_profit_price - entry_price) * quantity
-                entry_fee = size_usd * TRADING.PROFIT.ENTRY_FEE_PCT
-                total_fees = entry_fee + (
-                    expected_profit * TRADING.PROFIT.EXIT_FEE_PCT / TRADING.PROFIT.TAKE_PROFIT_PCT
+                # Calculate take profit with dynamic fee adjustment
+                fee_rates = (
+                    TRADING.EXCHANGE.get_maker_fee(symbol),
+                    TRADING.EXCHANGE.get_taker_fee(symbol),
                 )
+                maker_fee, taker_fee = fee_rates
+                total_fee_pct = taker_fee + maker_fee  # Assume taker on entry, maker on exit
+                adjusted_tp_pct = TRADING.RISK.TAKE_PROFIT_PCT + total_fee_pct  # Add fees to target
+                take_profit_price = entry_price * (1 + adjusted_tp_pct)
+
+                expected_profit = (take_profit_price - entry_price) * quantity
+                entry_fee = size_usd * taker_fee
+                exit_fee = (take_profit_price * quantity) * maker_fee
+                total_fees = entry_fee + exit_fee
                 net_profit = expected_profit - total_fees
 
-                logger.info(
-                    f"   🎯 TP: ${take_profit_price:.6f} (+{TRADING.RISK.TAKE_PROFIT_PCT * 100:.1f}%)"
+                # Record fee information in fee history
+                self.db.update_fee_tracking(
+                    symbol,
+                    entry_fee,
+                    size_usd,
+                    "BUY",
+                    order.order_id if hasattr(order, "order_id") else None,
                 )
+
+                logger.info(f"   🎯 TP: ${take_profit_price:.6f} (+{adjusted_tp_pct * 100:.1f}%)")
                 logger.info(
                     f"   💰 Gross: +${expected_profit:.4f} | Fees: -${total_fees:.4f} | Net: +${net_profit:.4f}"
                 )
@@ -217,7 +264,7 @@ class ExecutionEngine:
                     symbol,
                     quantity,
                     entry_price,
-                    take_profit_pct=TRADING.RISK.TAKE_PROFIT_PCT,
+                    take_profit_pct=adjusted_tp_pct,
                 )
 
                 # Update DB
@@ -235,7 +282,7 @@ class ExecutionEngine:
                 logger.info(f"✅ POSITION OPEN: {symbol} | Net: +${net_profit:.4f}")
 
             except Exception as e:
-                logger.error(f"❌ BUY FAILED {symbol}: {e}")
+                logger.error(f"❌ BUY FAILED {symbol}: {e}", exc_info=True)
 
         elif signal["signal"] == "SELL":
             pass
@@ -298,20 +345,45 @@ class ExecutionEngine:
     async def _execute_safe_sell(
         self, symbol: str, quantity: float, current_price: float, reason: str
     ):
-        """Execute SELL with proper quantity handling"""
+        """Execute SELL with comprehensive TP/SL validation and order lifecycle management"""
         try:
-            entry_price = 0
+            # Debug mode flag (can be enabled via environment variable or config)
+            debug_mode = os.environ.get("IBIS_DEBUG", "false").lower() == "true"
+
+            if debug_mode:
+                logger.debug(
+                    f"🔍 Debug: Entering _execute_safe_sell for {symbol} | Reason: {reason} | Price: {current_price:.6f} | Qty: {quantity:.8f}"
+                )
+
+            # Comprehensive validation: Ensure reason is valid TP/SL type
+            valid_reasons = ["TAKE_PROFIT", "STOP_LOSS", "TRAILING_STOP"]
+            if reason not in valid_reasons:
+                logger.error(
+                    f"❌ Invalid sell reason for {symbol}: {reason} (must be one of {', '.join(valid_reasons)})"
+                )
+                return
+
+            # Get position details from database
+            position = None
             positions = self.db.get_open_positions()
             for pos in positions:
                 if pos.get("symbol") == symbol:
-                    entry_price = float(pos.get("entry_price", current_price))
+                    position = pos
                     break
+
+            if not position:
+                logger.warning(f"⚠️ Position {symbol} not found in database")
+                return
+
+            entry_price = float(position.get("entry_price", current_price))
+            limit_sell_price = position.get("limit_sell_price")
+            limit_sell_order_id = position.get("limit_sell_order_id")
 
             pnl = (current_price - entry_price) * quantity
             pnl_pct = ((current_price / entry_price - 1) * 100) if entry_price > 0 else 0
 
             logger.info(
-                f"🛑 SELLING: {symbol} | Qty: {quantity:.8f} | PnL: ${pnl:+.2f} ({pnl_pct:+.2f}%)"
+                f"🛑 SELLING: {symbol} | Qty: {quantity:.8f} | PnL: ${pnl:+.2f} ({pnl_pct:+.2f}%) | Reason: {reason}"
             )
 
             rules = await self._get_symbol_rules(symbol)
@@ -323,12 +395,93 @@ class ExecutionEngine:
 
             logger.info(f"   📊 Rounded sell quantity: {sell_qty:.8f}")
 
+            # Determine if we should use existing limit order or create new order
+            if limit_sell_price and limit_sell_order_id:
+                logger.info(
+                    f"   📝 Found existing limit sell order: {limit_sell_order_id} @ ${limit_sell_price:.6f}"
+                )
+
+                # Check if current price matches or exceeds TP (for take profit)
+                if reason == "TAKE_PROFIT":
+                    if current_price >= limit_sell_price:
+                        logger.info(f"   🎯 Take profit reached - using existing limit order")
+                        # Check if limit order is still active
+                        try:
+                            order = await self.client.get_order(limit_sell_order_id, symbol)
+                            if order and order.status == "ACTIVE":
+                                logger.info(f"   ✅ Limit order still active - waiting for fill")
+                                if debug_mode:
+                                    logger.debug(
+                                        f"🔍 Debug: Order {limit_sell_order_id} is active, waiting for fill"
+                                    )
+                                return  # Order is active, let it fill
+                            elif order and order.status == "DONE":
+                                logger.info(f"   ✅ Limit order already filled")
+                                self.db.close_position(symbol, limit_sell_price, reason)
+                                if debug_mode:
+                                    logger.debug(
+                                        f"🔍 Debug: Order {limit_sell_order_id} already filled, position closed"
+                                    )
+                                return
+                            else:
+                                logger.warning(
+                                    f"   ⚠️ Limit order {limit_sell_order_id} has unexpected status: {order.status if order else 'None'}"
+                                )
+                        except Exception as e:
+                            logger.warning(f"   ⚠️ Could not check limit order status: {e}")
+                    else:
+                        logger.warning(
+                            f"   ⚠️ Take profit not actually reached - current price ({current_price:.6f}) < TP ({limit_sell_price:.6f})"
+                        )
+                        if debug_mode:
+                            logger.debug(
+                                f"🔍 Debug: TP validation failed - current price {current_price:.6f} < TP {limit_sell_price:.6f}"
+                            )
+                        return
+
+                # For stop loss or other reasons, cancel existing limit order and create market order
+                if reason == "STOP_LOSS" or reason == "TRAILING_STOP":
+                    # Validate stop loss price
+                    stop_loss_price = entry_price * (1 - TRADING.RISK.STOP_LOSS_PCT)
+                    if current_price > stop_loss_price and reason == "STOP_LOSS":
+                        logger.warning(
+                            f"   ⚠️ Stop loss not actually reached - current price ({current_price:.6f}) > SL ({stop_loss_price:.6f})"
+                        )
+                        if debug_mode:
+                            logger.debug(
+                                f"🔍 Debug: SL validation failed - current price {current_price:.6f} > SL {stop_loss_price:.6f}"
+                            )
+                        return
+
+                    logger.info(f"   🛑 {reason} - canceling limit order and placing market sell")
+                    try:
+                        await self.client.cancel_order(limit_sell_order_id)
+                        logger.info(f"   ✅ Limit order canceled")
+                        if debug_mode:
+                            logger.debug(
+                                f"🔍 Debug: Successfully canceled order {limit_sell_order_id}"
+                            )
+                    except Exception as e:
+                        logger.warning(f"   ⚠️ Could not cancel limit order: {e}")
+                        if debug_mode:
+                            logger.debug(
+                                f"🔍 Debug: Failed to cancel order {limit_sell_order_id}: {e}"
+                            )
+
+            # If no valid limit order or we canceled it, create market order
             order = await self.client.create_market_order(symbol, "sell", sell_qty)
             self.db.close_position(symbol, current_price, reason)
-            logger.info(f"✅ SELL SUCCESS: {symbol}")
+            logger.info(f"✅ SELL SUCCESS: {symbol} | Order: {order.order_id}")
+            if debug_mode:
+                logger.debug(
+                    f"🔍 Debug: Market sell order executed successfully - Order ID: {order.order_id}"
+                )
 
         except Exception as e:
-            logger.error(f"❌ SELL FAILED {symbol}: {e}")
+            logger.error(f"❌ SELL FAILED {symbol}: {e}", exc_info=True)
+            if debug_mode:
+                logger.debug(f"🔍 Debug: Exception in _execute_safe_sell: {e}", exc_info=True)
+
             if "increment invalid" in str(e):
                 logger.warning(f"   🔧 Attempting quantity fix...")
                 try:
@@ -339,7 +492,7 @@ class ExecutionEngine:
                     self.db.close_position(symbol, current_price, reason)
                     logger.info(f"✅ SELL SUCCESS after fix: {symbol}")
                 except Exception as e2:
-                    logger.error(f"   ❌ Fix failed: {e2}")
+                    logger.error(f"   ❌ Fix failed: {e2}", exc_info=True)
 
     async def _place_passive_limit_sell(
         self,
@@ -381,7 +534,7 @@ class ExecutionEngine:
             return order
 
         except Exception as e:
-            logger.error(f"❌ LIMIT FAILED {symbol}: {e}")
+            logger.error(f"❌ LIMIT FAILED {symbol}: {e}", exc_info=True)
             return None
 
     async def run(self):
@@ -409,7 +562,12 @@ class ExecutionEngine:
                 balances = await self.client.get_all_balances()
                 usdt = float(balances.get("USDT", {}).get("available", 0))
 
-                # 4. Scan for Opportunities with fresh capital
+                # 4. Refresh trade history and update dynamic fees
+                await self.pnl_tracker.sync_trades_from_kucoin(self.client)
+                self.pnl_tracker.match_trades_fifo()
+                self._update_dynamic_fees()
+
+                # 5. Scan for Opportunities with fresh capital
                 logger.info(f"   💰 Available Capital: ${usdt:.2f}")
 
                 if usdt >= Config.MIN_CAPITAL_PER_TRADE:
@@ -430,7 +588,7 @@ class ExecutionEngine:
                 else:
                     logger.info(f"   🛑 Insufficient capital (${usdt:.2f}) - Rotating only")
 
-                # 5. Meta-Reflection
+                # 6. Meta-Reflection
                 positions = self.db.get_open_positions()
 
                 global_thought = f"Rotated {rotation_results['trades_executed']} | PnL: ${rotation_results['total_realized_pnl']:+.2f} | {len(positions)} positions"

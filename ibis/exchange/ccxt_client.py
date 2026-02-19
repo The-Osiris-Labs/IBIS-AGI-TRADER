@@ -8,6 +8,9 @@ import aiohttp
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
+from ibis.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 try:
     import ccxt
@@ -71,11 +74,11 @@ class CCXTClient:
         self._session = None
 
         if not CCXT_AVAILABLE:
-            print("CCXT not installed. Install with: pip install ccxt")
+            logger.warning("CCXT not installed. Install with: pip install ccxt")
             return
 
         if self.exchange_name not in self.SUPPORTED_EXCHANGES:
-            print(f"Warning: {exchange} may not be fully tested")
+            logger.warning(f"Warning: {exchange} may not be fully tested")
 
         try:
             exchange_class = getattr(ccxt, self.exchange_name)
@@ -92,12 +95,12 @@ class CCXTClient:
                     config["password"] = password
 
             self._exchange = exchange_class(config)
-            
+
             if sandbox or paper_trading:
                 if hasattr(self._exchange, "set_sandbox_mode"):
                     self._exchange.set_sandbox_mode(True)
         except Exception as e:
-            print(f"Failed to initialize {exchange}: {e}")
+            logger.error(f"Failed to initialize {exchange}: {e}", exc_info=True)
 
     async def fetch_tickers(self, symbols: List[str] = None) -> Dict[str, Ticker]:
         """Fetch current market tickers."""
@@ -111,10 +114,10 @@ class CCXTClient:
                 if symbols and hasattr(self._exchange, "load_markets"):
                     markets = await asyncio.to_thread(self._exchange.load_markets)
                     valid_symbols = [s for s in symbols if s in markets]
-                
+
                 if not valid_symbols and symbols:
                     return {}
-                    
+
                 data = await asyncio.to_thread(self._exchange.fetch_tickers, valid_symbols)
                 tickers = {}
                 for symbol, ticker in data.items():
@@ -131,7 +134,7 @@ class CCXTClient:
                     )
                 return tickers
         except Exception as e:
-            print(f"Error fetching tickers: {e}")
+            logger.error(f"Error fetching tickers: {e}", exc_info=True)
         return {}
 
     async def fetch_ohlcv(
@@ -161,7 +164,7 @@ class CCXTClient:
                 for c in data
             ]
         except Exception as e:
-            print(f"Error fetching OHLCV: {e}")
+            logger.error(f"Error fetching OHLCV: {e}", exc_info=True)
         return []
 
     async def fetch_orderbook(self, symbol: str, limit: int = 20) -> Dict:
@@ -170,11 +173,9 @@ class CCXTClient:
             return {}
 
         try:
-            return await asyncio.to_thread(
-                self._exchange.fetch_order_book, symbol, limit
-            )
+            return await asyncio.to_thread(self._exchange.fetch_order_book, symbol, limit)
         except Exception as e:
-            print(f"Error fetching orderbook: {e}")
+            logger.error(f"Error fetching orderbook: {e}", exc_info=True)
         return {}
 
     async def fetch_balance(self) -> Dict:
@@ -185,7 +186,7 @@ class CCXTClient:
         try:
             return await asyncio.to_thread(self._exchange.fetch_balance)
         except Exception as e:
-            print(f"Error fetching balance: {e}")
+            logger.error(f"Error fetching balance: {e}", exc_info=True)
         return {}
 
     async def create_order(
@@ -212,7 +213,7 @@ class CCXTClient:
 
             return await asyncio.to_thread(self._exchange.create_order, **order)
         except Exception as e:
-            print(f"Error creating order: {e}")
+            logger.error(f"Error creating order: {e}", exc_info=True)
         return {}
 
     def get_exchange_name(self) -> str:

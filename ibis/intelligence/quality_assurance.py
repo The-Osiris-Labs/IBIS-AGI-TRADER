@@ -1,3 +1,4 @@
+from ibis.core.logging_config import get_logger
 """
 IBIS Intelligence Quality Assurance Module
 ==========================================
@@ -10,9 +11,8 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-import logging
 
-logger = logging.getLogger("IBIS")
+logger = get_logger(__name__)
 
 
 class DataQualityAssurance:

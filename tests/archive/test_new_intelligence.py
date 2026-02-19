@@ -27,13 +27,14 @@ async def test_intelligence():
 
     # Check score distribution
     scores = [data["score"] for data in agent.market_intel.values()]
-    print(f"📊 Score range: {min(scores):.1f} - {max(scores):.1f}/100")
-    print(f"📊 Average score: {sum(scores) / len(scores):.1f}/100")
+    if scores:
+        print(f"📊 Score range: {min(scores):.1f} - {max(scores):.1f}/100")
+        print(f"📊 Average score: {sum(scores) / len(scores):.1f}/100")
+    else:
+        print(f"📊 No scores available (market intel is empty)")
 
     # Find top opportunities with detailed insights
-    top_opps = sorted(
-        agent.market_intel.items(), key=lambda x: x[1]["score"], reverse=True
-    )[:5]
+    top_opps = sorted(agent.market_intel.items(), key=lambda x: x[1]["score"], reverse=True)[:5]
     print(f"🎯 Top 5 opportunities with comprehensive insights:")
     for symbol, data in top_opps:
         print(f"   {symbol}:")

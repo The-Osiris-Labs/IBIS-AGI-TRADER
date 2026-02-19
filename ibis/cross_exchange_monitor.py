@@ -7,6 +7,9 @@ import asyncio
 from typing import Dict, Optional
 from ibis.exchange.ccxt_client import CCXTClient
 from ibis.core.trading_constants import TRADING
+from ibis.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class CrossExchangeMonitor:
@@ -29,12 +32,12 @@ class CrossExchangeMonitor:
                 exchange="binance", sandbox=sandbox, paper_trading=paper_trading
             )
             if self.binance.is_available():
-                print("✅ Cross-exchange monitor initialized (Binance)")
+                logger.info("✅ Cross-exchange monitor initialized (Binance)")
             else:
-                print("⚠️ CCXT not available - cross-exchange monitoring disabled")
+                logger.warning("⚠️ CCXT not available - cross-exchange monitoring disabled")
                 self.binance = None
         except Exception as e:
-            print(f"⚠️ Failed to initialize cross-exchange monitor: {e}")
+            logger.warning(f"⚠️ Failed to initialize cross-exchange monitor: {e}")
             self.binance = None
 
     async def get_price_lead_signal(self, symbol: str, kucoin_price: float) -> Dict:
@@ -107,9 +110,7 @@ class CrossExchangeMonitor:
 
             # Binance leading upward = KuCoin likely to follow = BUY signal
             if price_diff_pct > self.lead_threshold * 100:
-                boost = min(
-                    10, int(price_diff_pct * 20)
-                )  # 0.2% lead = +4 boost, 0.5% = +10
+                boost = min(10, int(price_diff_pct * 20))  # 0.2% lead = +4 boost, 0.5% = +10
                 return {
                     "has_lead": True,
                     "lead_pct": price_diff_pct,

@@ -1,3 +1,4 @@
+from ibis.core.logging_config import get_logger
 """
 IBIS Multi-Source Correlation & Fusion Module
 =============================================
@@ -9,13 +10,12 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-import logging
 from collections import defaultdict
 
 from ibis.intelligence.quality_assurance import intelligence_qa
 from ibis.intelligence.advanced_signal_processor import AdvancedSignalProcessor
 
-logger = logging.getLogger("IBIS")
+logger = get_logger(__name__)
 
 
 class MultiSourceCorrelationSystem:

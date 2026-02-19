@@ -1,3 +1,5 @@
+from ibis.core.logging_config import get_logger
+
 """
 IBIS v2 EXECUTION ENGINE - ENHANCED WITH ERROR RECOVERY
 =========================================================
@@ -11,7 +13,6 @@ Fixes for:
 
 import os
 import asyncio
-import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 from dataclasses import dataclass
@@ -23,7 +24,7 @@ from ..exchange.kucoin_client import get_kucoin_client
 from ..cross_exchange_monitor import CrossExchangeMonitor
 from ..market_intelligence import market_intelligence
 
-logger = logging.getLogger("ibis_v2")
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -60,7 +61,7 @@ class EnhancedExecutionEngine:
             await self.client.get_all_balances()
             logger.info("✅ KuCoin Connection Verified")
         except Exception as e:
-            logger.error(f"❌ KuCoin Connection Failed: {e}")
+            logger.error(f"❌ KuCoin Connection Failed: {e}", exc_info=True)
             raise
 
         await self.monitor.initialize()
@@ -144,7 +145,7 @@ class EnhancedExecutionEngine:
             tickers_list = await self.client.get_tickers()
             tickers = {t.symbol: t for t in tickers_list}
         except Exception as e:
-            logger.error(f"❌ Failed to sync: {e}")
+             logger.error(f"❌ Failed to sync: {e}", exc_info=True)
             return
 
         logger.info(f"   🔄 Analyzing {len(balances)} balances...")
@@ -295,7 +296,7 @@ class EnhancedExecutionEngine:
                 logger.info(f"   🔧 Retry with fixed quantity: {fixed_qty:.8f}")
 
         except Exception as e:
-            logger.error(f"   ❌ Could not fix quantity: {e}")
+             logger.error(f"   ❌ Could not fix quantity: {e}", exc_info=True)
 
     async def manage_positions(self):
         """Enhanced position management with proper exit logic"""
@@ -383,7 +384,7 @@ class EnhancedExecutionEngine:
                 del self.active_orders[order_id]
                 logger.info(f"✅ Order {order_id} cancelled")
             except Exception as e:
-                logger.error(f"❌ Failed to cancel expired order {order_id}: {e}")
+                 logger.error(f"❌ Failed to cancel expired order {order_id}: {e}", exc_info=True)
 
     async def shutdown(self):
         """Clean shutdown"""

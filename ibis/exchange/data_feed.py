@@ -10,6 +10,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from collections import deque
 from ..exchange.kucoin_client import KuCoinClient, Ticker, Candle, OrderBook
+from ibis.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -130,7 +133,7 @@ class DataFeed:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"Data feed error for {symbol}: {e}")
+                logger.error(f"Data feed error for {symbol}: {e}", exc_info=True)
                 await asyncio.sleep(1)
 
     async def get_snapshot(self, symbol: str) -> Optional[MarketSnapshot]:

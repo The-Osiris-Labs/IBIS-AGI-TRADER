@@ -1,3 +1,5 @@
+from ibis.core.logging_config import get_logger
+
 """
 IBIS Robust Error Handling & Fallback System
 ============================================
@@ -8,11 +10,10 @@ import asyncio
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-import logging
 import traceback
 from collections import defaultdict, deque
 
-logger = logging.getLogger("IBIS")
+logger = get_logger(__name__)
 
 
 class ErrorHandler:
@@ -128,7 +129,7 @@ class ErrorHandler:
                 logger.warning(f"Fallback strategy failed: {e}")
                 continue
 
-        logger.error(f"No successful fallback for error: {error_info['message']}")
+        logger.error(f"No successful fallback for error: {error_info['message']}", exc_info=True)
         return None
 
     async def _determine_error_category(self, error_info: Dict) -> str:
@@ -554,7 +555,8 @@ class RetryManager:
 
             # All retries failed
             logger.error(
-                f"All {max_retries} retries failed for {context.get('symbol', 'unknown')}: {e}"
+                f"All {max_retries} retries failed for {context.get('symbol', 'unknown')}: {e}",
+                exc_info=True,
             )
 
             return await self.error_handler.handle_error(e, context)
@@ -733,7 +735,7 @@ class SystemHealthMonitor:
                     )
 
                 except Exception as e:
-                    logger.error(f"Health check '{check['name']}' failed: {e}")
+                    logger.error(f"Health check '{check['name']}' failed: {e}", exc_info=True)
                     check["last_result"] = {"healthy": False, "error": str(e)}
                     check["failure_count"] += 1
                     check["last_check"] = now
@@ -795,7 +797,7 @@ class SystemHealthMonitor:
                 logger.info(f"Executing recovery action: {action['name']}")
                 await action["action"]()
             except Exception as e:
-                logger.error(f"Recovery action failed: {e}")
+                logger.error(f"Recovery action failed: {e}", exc_info=True)
 
     async def get_health_report(self) -> Dict:
         """Get comprehensive health report"""

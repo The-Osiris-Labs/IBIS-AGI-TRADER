@@ -14,6 +14,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from ibis.core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 STATE_FILE = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true_state.json"
 MEMORY_FILE = "/root/projects/Dont enter unless solicited/AGI Trader/data/ibis_true_memory.json"
@@ -53,7 +57,7 @@ def save_state(state: Dict) -> bool:
             fcntl.flock(lock_f, fcntl.LOCK_UN)
         return True
     except Exception as e:
-        print(f"Error saving state: {e}")
+        logger.error(f"Error saving state: {e}", exc_info=True)
         return False
 
 
@@ -83,7 +87,7 @@ def save_memory(memory: Dict) -> bool:
             json.dump(memory, f, indent=2, default=str)
         return True
     except Exception as e:
-        print(f"Error saving memory: {e}")
+        logger.error(f"Error saving memory: {e}", exc_info=True)
         return False
 
 
@@ -233,14 +237,14 @@ def run_full_sync(db) -> bool:
         state["updated"] = datetime.now().isoformat()
 
         if save_state(state) and save_memory(memory):
-            print("✅ Data consolidation complete")
+            logger.info("✅ Data consolidation complete")
             return True
         else:
-            print("❌ Failed to save consolidated data")
+            logger.error("❌ Failed to save consolidated data")
             return False
 
     except Exception as e:
-        print(f"❌ Data consolidation error: {e}")
+        logger.error(f"❌ Data consolidation error: {e}", exc_info=True)
         return False
 
 
@@ -272,7 +276,7 @@ def cleanup_dust_positions(db=None, client=None, threshold: float = 1.0) -> Dict
         state["positions"] = positions
         state["updated"] = datetime.now().isoformat()
         save_state(state)
-        print(f"🧹 Cleaned {len(cleaned)} dust positions: {[p['symbol'] for p in cleaned]}")
+        logger.info(f"🧹 Cleaned {len(cleaned)} dust positions: {[p['symbol'] for p in cleaned]}")
 
     return {"cleaned": cleaned, "count": len(cleaned)}
 

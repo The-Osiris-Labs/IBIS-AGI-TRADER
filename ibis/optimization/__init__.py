@@ -1,3 +1,4 @@
+from ibis.core.logging_config import get_logger
 #!/usr/bin/env python3
 """
 🦅 IBIS OPTIMIZATION ENGINE
@@ -13,13 +14,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
-import logging
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ..backtest import BacktestEngine, BacktestConfig, BacktestResult
 
-logger = logging.getLogger("IBIS-OPTIMIZE")
+logger = get_logger(__name__)
 
 
 @dataclass

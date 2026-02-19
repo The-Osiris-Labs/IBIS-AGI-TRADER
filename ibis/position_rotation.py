@@ -1,3 +1,5 @@
+from ibis.core.logging_config import get_logger
+
 """
 IBIS Position Rotation Manager
 =============================
@@ -13,7 +15,6 @@ Writes closed trades to SQLite DB for analytics
 """
 
 import asyncio
-import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
@@ -24,7 +25,7 @@ from ibis.exchange.kucoin_client import get_kucoin_client
 from ibis.database.db import IbisDB
 from ibis.data_consolidation import load_state, save_state
 
-logger = logging.getLogger("ibis_rotation")
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -119,12 +120,8 @@ class PositionRotationManager:
 
                 # Get AGI intelligence score from market intelligence
                 try:
-                    intel = await market_intelligence.get_combined_intelligence(
-                        [currency]
-                    )
-                    score = market_intelligence.calculate_intelligence_score(
-                        currency, intel
-                    )
+                    intel = await market_intelligence.get_combined_intelligence([currency])
+                    score = market_intelligence.calculate_intelligence_score(currency, intel)
                 except Exception as e:
                     score = max(0, min(100, 50 + pnl_pct * 5))
 
@@ -267,46 +264,163 @@ class PositionRotationManager:
         return results
 
     async def _sell_position(self, eval_result: PositionEvaluation) -> bool:
-        """Execute sell for a position"""
+        """Execute sell for a position with comprehensive TP/SL validation and order lifecycle management"""
         symbol = eval_result.symbol
         quantity = eval_result.quantity
 
         try:
+            # Debug mode flag (can be enabled via environment variable or config)
+            debug_mode = os.environ.get("IBIS_DEBUG", "false").lower() == "true"
+
+            if debug_mode:
+                logger.debug(
+                    f"🔍 Debug: Entering _sell_position for {symbol} | Action: {eval_result.action} | Reason: {eval_result.reason} | Price: {eval_result.current_price:.6f} | Qty: {quantity:.8f}"
+                )
+
+            # Comprehensive validation: Ensure action is valid TP/SL type
+            valid_actions = ["SELL_TP", "SELL_SL"]
+            if eval_result.action not in valid_actions:
+                logger.error(
+                    f"❌ Invalid sell action for {symbol}: {eval_result.action} (must be one of {', '.join(valid_actions)})"
+                )
+                return False
+
             currency = symbol.replace("-USDT", "")
             balances = await self.client.get_all_balances(min_value_usd=0)
             actual_balance = float(balances.get(currency, {}).get("balance", 0))
 
             if actual_balance <= 0:
-                logger.info(
-                    f"⚠️ Position {symbol} already closed (balance: {actual_balance})"
-                )
-                self.db.close_position(
-                    symbol, eval_result.current_price, "ALREADY_CLOSED"
-                )
+                logger.info(f"⚠️ Position {symbol} already closed (balance: {actual_balance})")
+                self.db.close_position(symbol, eval_result.current_price, "ALREADY_CLOSED")
+                if debug_mode:
+                    logger.debug(
+                        f"🔍 Debug: Position {symbol} already closed, balance: {actual_balance}"
+                    )
                 return False
+
+            # Get position details from database
+            position = None
+            positions = self.db.get_open_positions()
+            for pos in positions:
+                if pos.get("symbol") == symbol:
+                    position = pos
+                    break
+
+            limit_sell_price = position.get("limit_sell_price") if position else None
+            limit_sell_order_id = position.get("limit_sell_order_id") if position else None
 
             rules = await self._fetch_symbol_rules(symbol)
             sell_qty = self._round_quantity(actual_balance, rules)
 
             if sell_qty <= 0:
                 logger.warning(f"⚠️ Invalid quantity for {symbol}: {sell_qty}")
+                if debug_mode:
+                    logger.debug(f"🔍 Debug: Invalid quantity {sell_qty} for {symbol}")
                 return False
 
-            logger.info(
-                f"🛑 SELLING: {symbol} | Qty: {sell_qty:.8f} | {eval_result.reason}"
-            )
+            logger.info(f"🛑 SELLING: {symbol} | Qty: {sell_qty:.8f} | {eval_result.reason}")
 
+            # Determine if we should use existing limit order or create new order
+            if limit_sell_price and limit_sell_order_id:
+                logger.info(
+                    f"   📝 Found existing limit sell order: {limit_sell_order_id} @ ${limit_sell_price:.6f}"
+                )
+
+                # Check if current price matches or exceeds TP (for take profit)
+                if eval_result.action == "SELL_TP":
+                    if eval_result.current_price >= limit_sell_price:
+                        logger.info(f"   🎯 Take profit reached - using existing limit order")
+                        # Check if limit order is still active
+                        try:
+                            order = await self.client.get_order(limit_sell_order_id, symbol)
+                            if order and order.status == "ACTIVE":
+                                logger.info(f"   ✅ Limit order still active - waiting for fill")
+                                if debug_mode:
+                                    logger.debug(
+                                        f"🔍 Debug: Order {limit_sell_order_id} is active, waiting for fill"
+                                    )
+                                return False  # Order is active, let it fill
+                            elif order and order.status == "DONE":
+                                logger.info(f"   ✅ Limit order already filled")
+                                self.db.close_position(symbol, limit_sell_price, eval_result.action)
+                                if debug_mode:
+                                    logger.debug(
+                                        f"🔍 Debug: Order {limit_sell_order_id} already filled, position closed"
+                                    )
+                                return True
+                            else:
+                                logger.warning(
+                                    f"   ⚠️ Limit order {limit_sell_order_id} has unexpected status: {order.status if order else 'None'}"
+                                )
+                                if debug_mode:
+                                    logger.debug(
+                                        f"🔍 Debug: Order {limit_sell_order_id} has unexpected status: {order.status if order else 'None'}"
+                                    )
+                        except Exception as e:
+                            logger.warning(f"   ⚠️ Could not check limit order status: {e}")
+                            if debug_mode:
+                                logger.debug(f"🔍 Debug: Failed to check order status: {e}")
+                    else:
+                        logger.warning(
+                            f"   ⚠️ Take profit not actually reached - current price ({eval_result.current_price:.6f}) < TP ({limit_sell_price:.6f})"
+                        )
+                        if debug_mode:
+                            logger.debug(
+                                f"🔍 Debug: TP validation failed - current price {eval_result.current_price:.6f} < TP {limit_sell_price:.6f}"
+                            )
+                        return False
+
+                # For stop loss, cancel existing limit order and create market order
+                if eval_result.action == "SELL_SL":
+                    # Validate stop loss price
+                    entry_price = position.get("entry_price", eval_result.current_price)
+                    stop_loss_price = entry_price * (1 - TRADING.RISK.STOP_LOSS_PCT)
+                    if eval_result.current_price > stop_loss_price:
+                        logger.warning(
+                            f"   ⚠️ Stop loss not actually reached - current price ({eval_result.current_price:.6f}) > SL ({stop_loss_price:.6f})"
+                        )
+                        if debug_mode:
+                            logger.debug(
+                                f"🔍 Debug: SL validation failed - current price {eval_result.current_price:.6f} > SL {stop_loss_price:.6f}"
+                            )
+                        return False
+
+                    logger.info(
+                        f"   🛑 {eval_result.action} - canceling limit order and placing market sell"
+                    )
+                    try:
+                        await self.client.cancel_order(limit_sell_order_id)
+                        logger.info(f"   ✅ Limit order canceled")
+                        if debug_mode:
+                            logger.debug(
+                                f"🔍 Debug: Successfully canceled order {limit_sell_order_id}"
+                            )
+                    except Exception as e:
+                        logger.warning(f"   ⚠️ Could not cancel limit order: {e}")
+                        if debug_mode:
+                            logger.debug(
+                                f"🔍 Debug: Failed to cancel order {limit_sell_order_id}: {e}"
+                            )
+
+            # If no valid limit order or we canceled it, create market order
             order = await self.client.create_market_order(symbol, "sell", sell_qty)
 
             # Close in DB
-            self.db.close_position(
-                symbol, eval_result.current_price, eval_result.action
+            self.db.close_position(symbol, eval_result.current_price, eval_result.action)
+            logger.info(
+                f"✅ SOLD: {symbol} | PnL: {eval_result.pnl_pct:+.2f}% | Order: {order.order_id}"
             )
-            logger.info(f"✅ SOLD: {symbol} | PnL: {eval_result.pnl_pct:+.2f}%")
+            if debug_mode:
+                logger.debug(
+                    f"🔍 Debug: Market sell order executed successfully - Order ID: {order.order_id}"
+                )
+
             return True
 
         except Exception as e:
-            logger.error(f"❌ SELL FAILED {symbol}: {e}")
+            logger.error(f"❌ SELL FAILED {symbol}: {e}", exc_info=True)
+            if debug_mode:
+                logger.debug(f"🔍 Debug: Exception in _sell_position: {e}", exc_info=True)
             return False
 
     async def get_portfolio_summary(self) -> Dict:
@@ -332,11 +446,7 @@ class PositionRotationManager:
                     current_price = float(ticker.price)
                     value = quantity * current_price
                     pnl = (current_price - entry_price) * quantity
-                    pnl_pct = (
-                        (current_price / entry_price - 1) * 100
-                        if entry_price > 0
-                        else 0
-                    )
+                    pnl_pct = (current_price / entry_price - 1) * 100 if entry_price > 0 else 0
 
                     total_value += value
                     total_pnl += pnl

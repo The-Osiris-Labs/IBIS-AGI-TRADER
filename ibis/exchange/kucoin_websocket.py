@@ -5,7 +5,6 @@ Real-time market data streaming for IBIS AGI Trader
 
 import asyncio
 import json
-import logging
 import time
 from typing import Dict, List, Optional, Callable
 import websockets
@@ -13,8 +12,8 @@ from datetime import datetime
 
 from .kucoin_client import KuCoinClient, Ticker, OrderBook, TradeOrder
 
-# Configure logger
-logger = logging.getLogger(__name__)
+from ibis.core.logging_config import get_logger
+logger = get_logger(__name__)
 
 
 class KuCoinWebSocket:
@@ -80,7 +79,7 @@ class KuCoinWebSocket:
                 await self._reconnect()
 
             except Exception as e:
-                logger.error(f"❌ WebSocket listen error: {e}")
+                 logger.error(f"❌ WebSocket listen error: {e}", exc_info=True)
                 await asyncio.sleep(1)
 
     async def _reconnect(self):
@@ -94,7 +93,7 @@ class KuCoinWebSocket:
             # Re-subscribe to all channels
             await self._resubscribe()
         else:
-            logger.error("❌ WebSocket reconnection failed")
+             logger.error("❌ WebSocket reconnection failed", exc_info=True)
 
     async def _resubscribe(self):
         """Re-subscribe to all previously subscribed channels"""
@@ -102,7 +101,7 @@ class KuCoinWebSocket:
             try:
                 await self._send_subscription(topic, True)
             except Exception as e:
-                logger.error(f"❌ Failed to resubscribe to {topic}: {e}")
+                 logger.error(f"❌ Failed to resubscribe to {topic}: {e}", exc_info=True)
 
     async def subscribe(self, symbol: str, callback: Callable) -> bool:
         """Subscribe to ticker and orderbook channels for a symbol"""
@@ -169,7 +168,7 @@ class KuCoinWebSocket:
             logger.debug(f"{'Un' if is_unsubscribe else ''}subscribed to {topic}")
 
         except Exception as e:
-            logger.error(f"❌ Failed to {'un' if is_unsubscribe else ''}subscribe to {topic}: {e}")
+             logger.error(f"❌ Failed to {'un' if is_unsubscribe else ''}subscribe to {topic}: {e}", exc_info=True)
 
     async def _process_message(self, raw_message: str):
         """Process incoming WebSocket messages"""
@@ -194,7 +193,7 @@ class KuCoinWebSocket:
                 await self._process_trade_update(topic, data)
 
         except Exception as e:
-            logger.error(f"❌ Error processing WebSocket message: {e}")
+             logger.error(f"❌ Error processing WebSocket message: {e}", exc_info=True)
 
     async def _process_ticker_update(self, topic: str, data: dict):
         """Process ticker channel updates"""
@@ -212,10 +211,10 @@ class KuCoinWebSocket:
                     try:
                         await callback("ticker", symbol, price)
                     except Exception as e:
-                        logger.error(f"❌ Callback error for {topic}: {e}")
+                        logger.error(f"❌ Callback error for {topic}: {e}", exc_info=True)
 
         except Exception as e:
-            logger.error(f"❌ Error processing ticker update: {e}")
+             logger.error(f"❌ Error processing ticker update: {e}", exc_info=True)
 
     async def _process_orderbook_update(self, topic: str, data: dict):
         """Process orderbook channel updates"""
@@ -239,10 +238,10 @@ class KuCoinWebSocket:
                     try:
                         await callback("orderbook", symbol, orderbook)
                     except Exception as e:
-                        logger.error(f"❌ Callback error for {topic}: {e}")
+                        logger.error(f"❌ Callback error for {topic}: {e}", exc_info=True)
 
         except Exception as e:
-            logger.error(f"❌ Error processing orderbook update: {e}")
+             logger.error(f"❌ Error processing orderbook update: {e}", exc_info=True)
 
     async def _process_trade_update(self, topic: str, data: dict):
         """Process trade channel updates"""
@@ -272,10 +271,10 @@ class KuCoinWebSocket:
                     try:
                         await callback("trade", symbol, self.trade_cache[symbol][-1])
                     except Exception as e:
-                        logger.error(f"❌ Callback error for {topic}: {e}")
+                        logger.error(f"❌ Callback error for {topic}: {e}", exc_info=True)
 
         except Exception as e:
-            logger.error(f"❌ Error processing trade update: {e}")
+             logger.error(f"❌ Error processing trade update: {e}", exc_info=True)
 
     def get_latest_price(self, symbol: str) -> float:
         """Get latest price from cache"""
@@ -351,7 +350,7 @@ class WebSocketDataFeed:
                     self.ws.orderbook_cache[symbol] = orderbook
 
                 except Exception as e:
-                    logger.error(f"❌ REST API fallback error for {symbol}: {e}")
+                     logger.error(f"❌ REST API fallback error for {symbol}: {e}", exc_info=True)
 
             await asyncio.sleep(self.update_interval)
 

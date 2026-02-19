@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Iterable
 from dataclasses import dataclass
 import sqlite3
+from ibis.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -86,17 +89,17 @@ class DataStorage:
     async def initialize(self) -> bool:
         """Initialize database."""
         try:
-            print("Initializing Data Storage...")
+            logger.info("Initializing Data Storage...")
 
             # Create tables
             self._create_tables()
 
             self.initialized = True
-            print("✓ Data Storage ready!")
+            logger.info("✓ Data Storage ready!")
             return True
 
         except Exception as e:
-            print(f"❌ Data Storage init failed: {e}")
+            logger.error(f"❌ Data Storage init failed: {e}", exc_info=True)
             return False
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -422,9 +425,7 @@ class DataStorage:
             cursor = conn.cursor()
 
             # Check if position exists
-            cursor.execute(
-                "SELECT id FROM positions WHERE symbol = ?", (position.symbol,)
-            )
+            cursor.execute("SELECT id FROM positions WHERE symbol = ?", (position.symbol,))
             existing = cursor.fetchone()
 
             if existing:
@@ -640,7 +641,7 @@ class DataStorage:
     async def shutdown(self) -> None:
         """Shutdown storage."""
         self.initialized = False
-        print("Data Storage shutdown complete")
+        logger.info("Data Storage shutdown complete")
 
 
 def get_storage(db_path: Optional[str] = None) -> DataStorage:

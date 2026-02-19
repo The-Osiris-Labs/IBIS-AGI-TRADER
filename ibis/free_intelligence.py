@@ -1,3 +1,4 @@
+from ibis.core.logging_config import get_logger
 #!/usr/bin/env python3
 """
 🦅 IBIS TRUE AGENT - FREE & INDEPENDENT INTELLIGENCE SOURCES
@@ -110,9 +111,8 @@ class FreeIntelligence:
         Get Fear & Greed Index from multiple FREE sources
         Source: alternative.me (FREE)
         """
-        import logging
 
-        logger = logging.getLogger("IBIS")
+        logger = get_logger(__name__)
 
         cache = self._get_cache("fear_greed")
         if cache:
@@ -248,9 +248,8 @@ class FreeIntelligence:
         Get momentum-based sentiment from market data
         Uses multiple free sources since CMC API requires authentication
         """
-        import logging
 
-        logger = logging.getLogger("IBIS")
+        logger = get_logger(__name__)
 
         cache_key = f"cmc_{symbol}"
         cache = self._get_cache(cache_key)
@@ -369,9 +368,8 @@ class FreeIntelligence:
         Get on-chain proxy metrics
         Uses CoinGecko as primary, CoinCap as backup
         """
-        import logging
 
-        logger = logging.getLogger("IBIS")
+        logger = get_logger(__name__)
 
         cache_key = f"onchain_{symbol}"
         cache = self._get_cache(cache_key)
@@ -769,9 +767,8 @@ class FreeIntelligence:
         Get market dominance metrics for BTC, ETH, and altcoins (FREE)
         Source: CoinGecko API
         """
-        import logging
 
-        logger = logging.getLogger("IBIS")
+        logger = get_logger(__name__)
 
         cache_key = "market_dominance"
         cache = self._get_cache(cache_key)
@@ -852,9 +849,8 @@ class FreeIntelligence:
         Calculate altcoin season index based on market data (FREE)
         Source: CoinGecko API
         """
-        import logging
 
-        logger = logging.getLogger("IBIS")
+        logger = get_logger(__name__)
 
         cache_key = "altcoin_season"
         cache = self._get_cache(cache_key)
@@ -952,9 +948,8 @@ class FreeIntelligence:
         Get ETH gas insights with network health indicators (FREE)
         Source: Etherscan API
         """
-        import logging
 
-        logger = logging.getLogger("IBIS")
+        logger = get_logger(__name__)
 
         cache_key = "eth_gas_insights"
         cache = self._get_cache(cache_key)
